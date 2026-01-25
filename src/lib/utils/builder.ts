@@ -73,6 +73,16 @@ export class GroupBuilder {
 		return this;
 	}
 
+	href(href: string): this {
+		this.group.href = href;
+		return this;
+	}
+
+	external(external = true): this {
+		this.group.external = external;
+		return this;
+	}
+
 	items(...items: SidebarItem[]): this {
 		this.group.items = items;
 		return this;
