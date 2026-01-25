@@ -150,9 +150,9 @@ export const sidebarConfig: SidebarConfig = {
 				},
 				{
 					kind: 'page',
-					id: 'with-icons',
-					label: 'With Icons',
-					href: '/examples/with-icons',
+					id: 'advanced',
+					label: 'Advanced (Schema)',
+					href: '/examples/advanced',
 					icon: '🎨',
 					badge: 'New'
 				},

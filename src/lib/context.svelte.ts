@@ -1,5 +1,18 @@
 import { getContext, setContext, untrack } from 'svelte';
-import type { SidebarConfig, SidebarSettings, SidebarEvents, SidebarPage, SidebarGroup } from './types.js';
+import type { Snippet } from 'svelte';
+import type {
+	SidebarConfig,
+	SidebarSettings,
+	SidebarEvents,
+	SidebarPage,
+	SidebarGroup,
+	SidebarItem,
+	SidebarSection,
+	SidebarSchema,
+	SidebarRenderContext,
+	ItemKind
+} from './types.js';
+import { defaultSchema } from './types.js';
 
 const SIDEBAR_CONTEXT_KEY = Symbol('sidebar-context');
 
@@ -18,14 +31,31 @@ const DEFAULT_SETTINGS: Required<SidebarSettings> = {
 };
 
 // ============================================================================
+// Snippet Types
+// ============================================================================
+
+export interface SidebarSnippets<T = unknown> {
+	page?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
+	group?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
+	section?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
+}
+
+// ============================================================================
 // Sidebar Context Class
 // ============================================================================
 
-export class SidebarContext {
+export class SidebarContext<T = unknown> {
 	// Configuration (initialized first)
-	readonly config: SidebarConfig;
+	readonly schema: SidebarSchema<T>;
+	readonly data: T[]; // Raw sections data
 	readonly settings: Required<SidebarSettings>;
 	readonly events: SidebarEvents;
+
+	// For backward compatibility - stores config when using legacy API
+	readonly config: SidebarConfig | undefined;
+
+	// Render snippets (set by Sidebar component) - reactive for updates
+	snippets = $state<SidebarSnippets<T>>({});
 
 	// Reactive state using Svelte 5 runes
 	collapsed = $state(false);
@@ -46,9 +76,32 @@ export class SidebarContext {
 		return this.collapsed;
 	}
 
-	constructor(config: SidebarConfig, events: SidebarEvents = {}) {
-		this.config = config;
-		this.settings = { ...DEFAULT_SETTINGS, ...config.settings };
+	constructor(options: {
+		config?: SidebarConfig;
+		data?: T[];
+		schema?: SidebarSchema<T>;
+		settings?: SidebarSettings;
+		events?: SidebarEvents;
+	}) {
+		const { config, data, schema, settings, events = {} } = options;
+
+		// Determine which API is being used
+		if (config) {
+			// Legacy API: use config.sections as data with defaultSchema
+			this.config = config;
+			this.data = config.sections as unknown as T[];
+			this.schema = defaultSchema as unknown as SidebarSchema<T>;
+			this.settings = { ...DEFAULT_SETTINGS, ...config.settings };
+		} else if (data) {
+			// New API: use data + schema
+			this.config = undefined;
+			this.data = data;
+			this.schema = schema ?? (defaultSchema as unknown as SidebarSchema<T>);
+			this.settings = { ...DEFAULT_SETTINGS, ...settings };
+		} else {
+			throw new Error('Sidebar requires either "config" or "data" prop');
+		}
+
 		this.events = events;
 
 		// Initialize state
@@ -69,6 +122,118 @@ export class SidebarContext {
 				this.persistState(collapsedValue, expandedMap);
 			});
 		});
+	}
+
+	// ========================================================================
+	// Schema Accessor Methods
+	// ========================================================================
+
+	/**
+	 * Get the kind of an item using the schema
+	 */
+	getKind(item: T): ItemKind {
+		return this.schema.getKind(item);
+	}
+
+	/**
+	 * Get the ID of an item using the schema
+	 */
+	getId(item: T): string {
+		return this.schema.getId(item);
+	}
+
+	/**
+	 * Get the label of an item using the schema
+	 */
+	getLabel(item: T): string {
+		return this.schema.getLabel(item);
+	}
+
+	/**
+	 * Get the href of an item using the schema
+	 */
+	getHref(item: T): string | undefined {
+		return this.schema.getHref?.(item);
+	}
+
+	/**
+	 * Get child items using the schema
+	 */
+	getItems(item: T): T[] {
+		return (this.schema.getItems?.(item) ?? []) as T[];
+	}
+
+	/**
+	 * Get the icon of an item using the schema
+	 */
+	getIcon(item: T): ReturnType<NonNullable<SidebarSchema<T>['getIcon']>> {
+		return this.schema.getIcon?.(item);
+	}
+
+	/**
+	 * Get the badge of an item using the schema
+	 */
+	getBadge(item: T): string | number | undefined {
+		return this.schema.getBadge?.(item);
+	}
+
+	/**
+	 * Check if an item is disabled using the schema
+	 */
+	getDisabled(item: T): boolean {
+		return this.schema.getDisabled?.(item) ?? false;
+	}
+
+	/**
+	 * Check if an item is external using the schema
+	 */
+	getExternal(item: T): boolean {
+		return this.schema.getExternal?.(item) ?? false;
+	}
+
+	/**
+	 * Check if a group is collapsible using the schema
+	 */
+	getCollapsible(item: T): boolean {
+		return this.schema.getCollapsible?.(item) ?? true;
+	}
+
+	/**
+	 * Get section title using the schema
+	 */
+	getTitle(item: T): string | undefined {
+		return this.schema.getTitle?.(item);
+	}
+
+	// ========================================================================
+	// Render Context Creation
+	// ========================================================================
+
+	/**
+	 * Create a render context for use with custom snippets.
+	 * Contains pre-computed values from the schema for convenience.
+	 */
+	createRenderContext(item: T, depth: number): SidebarRenderContext<T> {
+		const id = this.getId(item);
+		const href = this.getHref(item);
+		const kind = this.getKind(item);
+
+		return {
+			id,
+			label: this.getLabel(item),
+			href,
+			icon: this.getIcon(item),
+			badge: this.getBadge(item),
+			depth,
+			isActive: href ? this.activeHref === href : false,
+			isCollapsed: this.collapsed,
+			isExpanded: kind === 'group' ? this.isGroupExpanded(id) : undefined,
+			isDisabled: this.getDisabled(item),
+			isExternal: this.getExternal(item),
+			meta: this.schema.getMeta?.(item) ?? {},
+			original: item,
+			toggleExpanded: kind === 'group' ? () => this.toggleGroup(id) : undefined
+		};
 	}
 
 	// ========================================================================
@@ -143,7 +308,7 @@ export class SidebarContext {
 	}
 
 	/**
-	 * Handle navigation to a page
+	 * Handle navigation to a page (legacy compatibility)
 	 */
 	handleNavigate(page: SidebarPage): void {
 		this.events.onNavigate?.(page);
@@ -156,19 +321,28 @@ export class SidebarContext {
 	private getInitialExpandedGroups(): Record<string, boolean> {
 		const expanded: Record<string, boolean> = {};
 
-		const processItems = (items: (SidebarPage | SidebarGroup)[]): void => {
+		const processItems = (items: T[]): void => {
 			for (const item of items) {
-				if (item.kind === 'group') {
-					if (item.defaultExpanded) {
-						expanded[item.id] = true;
+				const kind = this.getKind(item);
+				if (kind === 'group') {
+					const id = this.getId(item);
+					if (this.schema.getDefaultExpanded?.(item)) {
+						expanded[id] = true;
 					}
-					processItems(item.items);
+					const children = this.getItems(item);
+					if (children.length > 0) {
+						processItems(children);
+					}
 				}
 			}
 		};
 
-		for (const section of this.config.sections) {
-			processItems(section.items);
+		for (const section of this.data) {
+			const kind = this.getKind(section);
+			if (kind === 'section') {
+				const items = this.getItems(section);
+				processItems(items);
+			}
 		}
 
 		return expanded;
@@ -224,25 +398,26 @@ export class SidebarContext {
 	}
 
 	private findPathToItem(targetId: string): string[] {
-		const findPath = (
-			items: (SidebarPage | SidebarGroup)[],
-			path: string[]
-		): string[] | null => {
+		const findPath = (items: T[], path: string[]): string[] | null => {
 			for (const item of items) {
-				if (item.id === targetId) {
+				const id = this.getId(item);
+				if (id === targetId) {
 					return path;
 				}
 
-				if (item.kind === 'group') {
-					const result = findPath(item.items, [...path, item.id]);
+				const kind = this.getKind(item);
+				if (kind === 'group') {
+					const children = this.getItems(item);
+					const result = findPath(children, [...path, id]);
 					if (result) return result;
 				}
 			}
 			return null;
 		};
 
-		for (const section of this.config.sections) {
-			const result = findPath(section.items, []);
+		for (const section of this.data) {
+			const items = this.getItems(section);
+			const result = findPath(items, []);
 			if (result) return result;
 		}
 
@@ -255,10 +430,16 @@ export class SidebarContext {
 // ============================================================================
 
 /**
- * Create and set sidebar context
+ * Create and set sidebar context (new generic API)
  */
-export function createSidebarContext(config: SidebarConfig, events: SidebarEvents = {}): SidebarContext {
-	const context = new SidebarContext(config, events);
+export function createSidebarContext<T = SidebarItem | SidebarSection>(options: {
+	config?: SidebarConfig;
+	data?: T[];
+	schema?: SidebarSchema<T>;
+	settings?: SidebarSettings;
+	events?: SidebarEvents;
+}): SidebarContext<T> {
+	const context = new SidebarContext<T>(options);
 	setContext(SIDEBAR_CONTEXT_KEY, context);
 	return context;
 }
@@ -266,17 +447,19 @@ export function createSidebarContext(config: SidebarConfig, events: SidebarEvent
 /**
  * Set sidebar context (for use when context is created externally)
  */
-export function setSidebarContext(context: SidebarContext): void {
+export function setSidebarContext<T>(context: SidebarContext<T>): void {
 	setContext(SIDEBAR_CONTEXT_KEY, context);
 }
 
 /**
  * Get sidebar context from parent component
  */
-export function getSidebarContext(): SidebarContext {
-	const context = getContext<SidebarContext>(SIDEBAR_CONTEXT_KEY);
+export function getSidebarContext<T = unknown>(): SidebarContext<T> {
+	const context = getContext<SidebarContext<T>>(SIDEBAR_CONTEXT_KEY);
 	if (!context) {
-		throw new Error('Sidebar context not found. Make sure to use this component inside a <Sidebar> component.');
+		throw new Error(
+			'Sidebar context not found. Make sure to use this component inside a <Sidebar> component.'
+		);
 	}
 	return context;
 }
@@ -284,6 +467,6 @@ export function getSidebarContext(): SidebarContext {
 /**
  * Try to get sidebar context (returns undefined if not found)
  */
-export function tryGetSidebarContext(): SidebarContext | undefined {
-	return getContext<SidebarContext>(SIDEBAR_CONTEXT_KEY);
+export function tryGetSidebarContext<T = unknown>(): SidebarContext<T> | undefined {
+	return getContext<SidebarContext<T>>(SIDEBAR_CONTEXT_KEY);
 }

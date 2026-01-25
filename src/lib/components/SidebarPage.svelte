@@ -1,48 +1,58 @@
-<script lang="ts">
-	import type { SidebarPageProps } from '../types.js';
+<script lang="ts" generics="T">
+	import type { SidebarPageProps, SidebarPage as SidebarPageData } from '../types.js';
 	import { getSidebarContext } from '../context.svelte.js';
 	import SidebarIcon from './SidebarIcon.svelte';
 
-	let { item, depth = 0, class: className = '' }: SidebarPageProps = $props();
+	let { item, depth = 0, class: className = '' }: SidebarPageProps<T> = $props();
 
-	const ctx = getSidebarContext();
+	const ctx = getSidebarContext<T>();
 
-	const isActive = $derived(ctx.activeHref === item.href);
+	// Create render context for snippet or default rendering
+	const renderCtx = $derived(ctx.createRenderContext(item, depth));
+
+	// Derived values for default rendering
 	const isCollapsed = $derived(ctx.isCollapsed);
 	const showLabel = $derived(!isCollapsed || depth > 0);
 
 	function handleClick() {
-		ctx.handleNavigate(item);
+		// Legacy compatibility: call handleNavigate if using built-in types
+		if (ctx.config) {
+			ctx.handleNavigate(item as unknown as SidebarPageData);
+		}
 	}
 </script>
 
-<li class="sidebar-page" style="--depth: {depth}">
-	<a
-		href={item.href}
-		class="sidebar-page__link {className}"
-		class:sidebar-page__link--active={isActive}
-		class:sidebar-page__link--disabled={item.disabled}
-		class:sidebar-page__link--collapsed={isCollapsed && depth === 0}
-		aria-current={isActive ? 'page' : undefined}
-		aria-disabled={item.disabled}
-		target={item.external ? '_blank' : undefined}
-		rel={item.external ? 'noopener noreferrer' : undefined}
-		onclick={handleClick}
-	>
-		{#if item.icon}
-			<SidebarIcon icon={item.icon} class="sidebar-page__icon" />
-		{/if}
+{#if ctx.snippets?.page}
+	{@render ctx.snippets.page(item, renderCtx)}
+{:else}
+	<li class="sidebar-page" style="--depth: {depth}">
+		<a
+			href={renderCtx.href}
+			class="sidebar-page__link {className}"
+			class:sidebar-page__link--active={renderCtx.isActive}
+			class:sidebar-page__link--disabled={renderCtx.isDisabled}
+			class:sidebar-page__link--collapsed={isCollapsed && depth === 0}
+			aria-current={renderCtx.isActive ? 'page' : undefined}
+			aria-disabled={renderCtx.isDisabled}
+			target={renderCtx.isExternal ? '_blank' : undefined}
+			rel={renderCtx.isExternal ? 'noopener noreferrer' : undefined}
+			onclick={handleClick}
+		>
+			{#if renderCtx.icon}
+				<SidebarIcon icon={renderCtx.icon} class="sidebar-page__icon" />
+			{/if}
 
-		{#if showLabel}
-			<span class="sidebar-page__label">{item.label}</span>
-		{/if}
+			{#if showLabel}
+				<span class="sidebar-page__label">{renderCtx.label}</span>
+			{/if}
 
-		{#if item.badge !== undefined && showLabel}
-			<span class="sidebar-page__badge">{item.badge}</span>
-		{/if}
+			{#if renderCtx.badge !== undefined && showLabel}
+				<span class="sidebar-page__badge">{renderCtx.badge}</span>
+			{/if}
 
-		{#if item.external && showLabel}
-			<span class="sidebar-page__external" aria-label="Opens in new tab">↗</span>
-		{/if}
-	</a>
-</li>
+			{#if renderCtx.isExternal && showLabel}
+				<span class="sidebar-page__external" aria-label="Opens in new tab">↗</span>
+			{/if}
+		</a>
+	</li>
+{/if}

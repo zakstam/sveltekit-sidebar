@@ -147,11 +147,119 @@ export function isSection(item: SidebarItem | SidebarSection): item is SidebarSe
 }
 
 // ============================================================================
+// Schema Types (Generic API)
+// ============================================================================
+
+/**
+ * Item kind discriminator
+ */
+export type ItemKind = 'page' | 'group' | 'section';
+
+/**
+ * Schema accessor functions for mapping user data types to sidebar structure.
+ * Enables users to use their own data types without transformation.
+ */
+export interface SidebarSchema<T = unknown> {
+	/** Get the kind of item: 'page', 'group', or 'section' */
+	getKind: (item: T) => ItemKind;
+	/** Get unique identifier for the item */
+	getId: (item: T) => string;
+	/** Get display label for the item */
+	getLabel: (item: T) => string;
+	/** Get navigation href (for pages and optionally groups) */
+	getHref?: (item: T) => string | undefined;
+	/** Get child items (for groups and sections) */
+	getItems?: (item: T) => T[] | undefined;
+	/** Get icon for the item */
+	getIcon?: (item: T) => SidebarIcon | undefined;
+	/** Get badge value */
+	getBadge?: (item: T) => string | number | undefined;
+	/** Check if item is disabled */
+	getDisabled?: (item: T) => boolean;
+	/** Check if link opens externally */
+	getExternal?: (item: T) => boolean;
+	/** Check if group is collapsible */
+	getCollapsible?: (item: T) => boolean;
+	/** Get default expanded state for groups */
+	getDefaultExpanded?: (item: T) => boolean;
+	/** Get section title */
+	getTitle?: (item: T) => string | undefined;
+	/** Get custom metadata for render context */
+	getMeta?: (item: T) => Record<string, unknown>;
+}
+
+/**
+ * Context passed to render snippets for custom item rendering.
+ * Contains pre-computed values from the schema for convenience.
+ */
+export interface SidebarRenderContext<T = unknown> {
+	/** Unique identifier */
+	id: string;
+	/** Display label */
+	label: string;
+	/** Navigation href (if applicable) */
+	href?: string;
+	/** Icon (if any) */
+	icon?: SidebarIcon;
+	/** Badge value (if any) */
+	badge?: string | number;
+	/** Nesting depth (0 = top level) */
+	depth: number;
+	/** Whether this item's href matches current route */
+	isActive: boolean;
+	/** Whether sidebar is in collapsed state */
+	isCollapsed: boolean;
+	/** Whether group is expanded (only for groups) */
+	isExpanded?: boolean;
+	/** Whether item is disabled */
+	isDisabled?: boolean;
+	/** Whether link is external */
+	isExternal?: boolean;
+	/** Custom metadata from schema */
+	meta: Record<string, unknown>;
+	/** Original item data */
+	original: T;
+	/** Toggle expanded state (only for groups) */
+	toggleExpanded?: () => void;
+}
+
+/**
+ * Default schema implementation for built-in types (SidebarItem | SidebarSection).
+ * Used automatically when using the legacy config prop.
+ */
+export const defaultSchema: SidebarSchema<SidebarItem | SidebarSection> = {
+	getKind: (item) => item.kind,
+	getId: (item) => item.id,
+	getLabel: (item) => ('label' in item ? item.label : ''),
+	getHref: (item) => ('href' in item ? item.href : undefined),
+	getItems: (item) => ('items' in item ? item.items : undefined),
+	getIcon: (item) => ('icon' in item ? item.icon : undefined),
+	getBadge: (item) => ('badge' in item ? item.badge : undefined),
+	getDisabled: (item) => ('disabled' in item ? item.disabled ?? false : false),
+	getExternal: (item) => ('external' in item ? item.external ?? false : false),
+	getCollapsible: (item) => ('collapsible' in item ? item.collapsible !== false : true),
+	getDefaultExpanded: (item) => ('defaultExpanded' in item ? item.defaultExpanded ?? false : false),
+	getTitle: (item) => ('title' in item ? item.title : undefined),
+	getMeta: () => ({})
+};
+
+// ============================================================================
 // Component Props Types
 // ============================================================================
 
-export interface SidebarProps {
-	config: SidebarConfig;
+/**
+ * Props for Sidebar component.
+ * Supports both legacy (config) and new (data + schema) APIs.
+ */
+export interface SidebarProps<T = SidebarItem | SidebarSection> {
+	/** Legacy API: Full config object with sections and settings */
+	config?: SidebarConfig;
+	/** New API: Raw data array (sections) */
+	data?: T[];
+	/** New API: Schema for mapping data to sidebar structure */
+	schema?: SidebarSchema<T>;
+	/** Sidebar settings (used with new API) */
+	settings?: SidebarSettings;
 	class?: string;
 	events?: SidebarEvents;
 }
@@ -160,24 +268,24 @@ export interface SidebarContentProps {
 	class?: string;
 }
 
-export interface SidebarSectionProps {
-	section: SidebarSection;
+export interface SidebarSectionProps<T = SidebarSection> {
+	section: T;
 	class?: string;
 }
 
-export interface SidebarItemsProps {
-	items: SidebarItem[];
+export interface SidebarItemsProps<T = SidebarItem> {
+	items: T[];
 	depth?: number;
 }
 
-export interface SidebarPageProps {
-	item: SidebarPage;
+export interface SidebarPageProps<T = SidebarPage> {
+	item: T;
 	depth?: number;
 	class?: string;
 }
 
-export interface SidebarGroupProps {
-	item: SidebarGroup;
+export interface SidebarGroupProps<T = SidebarGroup> {
+	item: T;
 	depth?: number;
 	class?: string;
 }

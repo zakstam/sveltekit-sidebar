@@ -16,7 +16,11 @@ export type {
 	SidebarPageProps,
 	SidebarGroupProps,
 	SidebarIconProps,
-	SidebarTriggerProps
+	SidebarTriggerProps,
+	// Schema types (new generic API)
+	ItemKind,
+	SidebarSchema,
+	SidebarRenderContext
 } from './types.js';
 
 // Conflicting types (renamed to avoid collision with component names)
@@ -27,6 +31,9 @@ export type {
 	SidebarGroup as SidebarGroupData,
 	SidebarSection as SidebarSectionData
 } from './types.js';
+
+// Default schema for backward compatibility
+export { defaultSchema } from './types.js';
 
 // ============================================================================
 // Type Guards
@@ -60,6 +67,8 @@ export {
 	getSidebarContext,
 	tryGetSidebarContext
 } from './context.svelte.js';
+
+export type { SidebarSnippets } from './context.svelte.js';
 
 // ============================================================================
 // Utilities - Type Helpers

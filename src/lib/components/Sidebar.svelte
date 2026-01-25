@@ -1,26 +1,81 @@
-<script lang="ts">
+<script lang="ts" generics="T">
 	import type { Snippet } from 'svelte';
 	import { page } from '$app/stores';
-	import type { SidebarProps } from '../types.js';
+	import type {
+		SidebarConfig,
+		SidebarSettings,
+		SidebarEvents,
+		SidebarSchema,
+		SidebarRenderContext
+	} from '../types.js';
 	import { createSidebarContext } from '../context.svelte.js';
 	import SidebarContent from './SidebarContent.svelte';
 	import SidebarTrigger from './SidebarTrigger.svelte';
 
 	let {
+		// New API
+		data,
+		schema,
+		settings,
+
+		// Legacy API (still works)
 		config,
+
+		// Render snippets for custom rendering
+		page: pageSnippet,
+		group: groupSnippet,
+		section: sectionSnippet,
+
+		// Common props
 		events = {},
 		class: className = '',
 		header,
 		footer,
 		children
-	}: SidebarProps & {
+	}: {
+		// New API
+		data?: T[];
+		schema?: SidebarSchema<T>;
+		settings?: SidebarSettings;
+
+		// Legacy API
+		config?: SidebarConfig;
+
+		// Render snippets
+		page?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
+		group?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
+		section?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
+
+		// Common props
+		events?: SidebarEvents;
+		class?: string;
 		header?: Snippet;
 		footer?: Snippet;
 		children?: Snippet;
 	} = $props();
 
-	// Create and provide context
-	const ctx = createSidebarContext(config, events);
+	// Create and provide context - detects which API is being used
+	// Note: config, data, schema, settings, events are intentionally captured once at mount
+	const ctx = createSidebarContext<T>({
+		config,
+		data,
+		schema,
+		settings,
+		events
+	});
+
+	// Set snippets immediately so they're available for initial render
+	// Use $derived to track snippet prop changes
+	const snippets = $derived({
+		page: pageSnippet,
+		group: groupSnippet,
+		section: sectionSnippet
+	});
+
+	// Keep context snippets in sync
+	$effect.pre(() => {
+		ctx.snippets = snippets;
+	});
 
 	// Single $page subscription - sync pathname to context
 	$effect(() => {

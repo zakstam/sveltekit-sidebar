@@ -9,7 +9,7 @@
 </script>
 
 <nav class="sidebar-content {className}" aria-label="Sidebar navigation">
-	{#each ctx.config.sections as section (section.id)}
+	{#each ctx.data as section (ctx.getId(section))}
 		<SidebarSection {section} />
 	{/each}
 </nav>
