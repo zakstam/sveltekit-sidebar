@@ -72,6 +72,31 @@ export interface SidebarSection {
 // ============================================================================
 
 /**
+ * Responsive mode for the sidebar
+ */
+export type SidebarResponsiveMode = 'mobile' | 'tablet' | 'desktop';
+
+/**
+ * Responsive settings for the sidebar
+ */
+export interface SidebarResponsiveSettings {
+	/** Enable responsive behavior (default: true) */
+	enabled?: boolean;
+	/** Breakpoint for mobile mode in px (default: 768) */
+	mobileBreakpoint?: number;
+	/** Breakpoint for tablet mode in px (default: 1024) */
+	tabletBreakpoint?: number;
+	/** Default mode for SSR to prevent hydration mismatch (default: 'desktop') */
+	defaultMode?: SidebarResponsiveMode;
+	/** Close drawer when navigating (default: true) */
+	closeOnNavigation?: boolean;
+	/** Close drawer when pressing Escape (default: true) */
+	closeOnEscape?: boolean;
+	/** Lock body scroll when drawer is open (default: true) */
+	lockBodyScroll?: boolean;
+}
+
+/**
  * Sidebar settings for customization
  */
 export interface SidebarSettings {
@@ -89,6 +114,8 @@ export interface SidebarSettings {
 	storageKey?: string;
 	/** Start collapsed */
 	defaultCollapsed?: boolean;
+	/** Responsive settings */
+	responsive?: SidebarResponsiveSettings;
 }
 
 /**
@@ -208,6 +235,7 @@ export interface SidebarDnDState {
 		'aria-pressed'?: boolean;
 		'aria-grabbed'?: boolean;
 		style?: string;
+		onmousedown: () => void;
 		ondragstart: (e: DragEvent) => void;
 		ondragend: (e: DragEvent) => void;
 		onkeydown: (e: KeyboardEvent) => void;
@@ -238,6 +266,10 @@ export interface SidebarEvents {
 	onCollapsedChange?: (collapsed: boolean) => void;
 	onGroupToggle?: (groupId: string, expanded: boolean) => void;
 	onNavigate?: (page: SidebarPage) => void;
+	/** Called when the drawer opens or closes (mobile mode) */
+	onOpenChange?: (open: boolean) => void;
+	/** Called when the responsive mode changes */
+	onModeChange?: (mode: SidebarResponsiveMode) => void;
 }
 
 // ============================================================================

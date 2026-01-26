@@ -15,7 +15,9 @@ import type {
 	ItemKind,
 	DropPosition,
 	KeyboardDragState,
-	PointerDragState
+	PointerDragState,
+	SidebarResponsiveSettings,
+	SidebarResponsiveMode
 } from './types.js';
 import { defaultSchema } from './types.js';
 
@@ -25,14 +27,27 @@ const SIDEBAR_CONTEXT_KEY = Symbol('sidebar-context');
 // Default Settings
 // ============================================================================
 
-const DEFAULT_SETTINGS: Required<SidebarSettings> = {
+const DEFAULT_RESPONSIVE_SETTINGS: Required<SidebarResponsiveSettings> = {
+	enabled: true,
+	mobileBreakpoint: 768,
+	tabletBreakpoint: 1024,
+	defaultMode: 'desktop',
+	closeOnNavigation: true,
+	closeOnEscape: true,
+	lockBodyScroll: true
+};
+
+const DEFAULT_SETTINGS: Required<Omit<SidebarSettings, 'responsive'>> & {
+	responsive: Required<SidebarResponsiveSettings>;
+} = {
 	widthExpanded: '280px',
 	widthCollapsed: '64px',
 	animationDuration: 200,
 	persistCollapsed: true,
 	persistExpandedGroups: true,
 	storageKey: 'sveltekit-sidebar',
-	defaultCollapsed: false
+	defaultCollapsed: false,
+	responsive: DEFAULT_RESPONSIVE_SETTINGS
 };
 
 // ============================================================================
@@ -53,7 +68,9 @@ export class SidebarContext<T = unknown> {
 	// Configuration (initialized first)
 	readonly schema: SidebarSchema<T>;
 	data = $state<T[]>([]); // Raw sections data - reactive for DnD reordering
-	readonly settings: Required<SidebarSettings>;
+	readonly settings: Required<Omit<SidebarSettings, 'responsive'>> & {
+		responsive: Required<SidebarResponsiveSettings>;
+	};
 	readonly events: SidebarEvents;
 
 	// For backward compatibility - stores config when using legacy API
@@ -64,6 +81,14 @@ export class SidebarContext<T = unknown> {
 
 	// Reactive state using Svelte 5 runes
 	collapsed = $state(false);
+
+	// Responsive state
+	responsiveMode = $state<SidebarResponsiveMode>('desktop');
+	drawerOpen = $state(false);
+	#mobileMediaQuery: MediaQueryList | null = null;
+	#tabletMediaQuery: MediaQueryList | null = null;
+	#mobileQueryHandler: ((e: MediaQueryListEvent) => void) | null = null;
+	#tabletQueryHandler: ((e: MediaQueryListEvent) => void) | null = null;
 
 	// Fine-grained reactivity: each group has its own reactive state
 	// This prevents all groups from re-rendering when one changes
@@ -97,6 +122,9 @@ export class SidebarContext<T = unknown> {
 	#dropZoneRects: Array<{ id: string; rect: DOMRect; element: HTMLElement }> = [];
 	#lastRectCacheTime = 0;
 	readonly rectCacheInterval = 100; // Refresh rects every 100ms during drag
+
+	// Custom drag preview element (set by Sidebar component)
+	#dragPreviewElement: HTMLElement | null = null;
 
 	// Auto-scroll state
 	#scrollContainer: HTMLElement | null = null;
@@ -138,13 +166,21 @@ export class SidebarContext<T = unknown> {
 			this.config = config;
 			this.data = config.sections as unknown as T[];
 			this.schema = defaultSchema as unknown as SidebarSchema<T>;
-			this.settings = { ...DEFAULT_SETTINGS, ...config.settings };
+			this.settings = {
+				...DEFAULT_SETTINGS,
+				...config.settings,
+				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...config.settings?.responsive }
+			};
 		} else if (data) {
 			// New API: use data + schema
 			this.config = undefined;
 			this.data = data;
 			this.schema = schema ?? (defaultSchema as unknown as SidebarSchema<T>);
-			this.settings = { ...DEFAULT_SETTINGS, ...settings };
+			this.settings = {
+				...DEFAULT_SETTINGS,
+				...settings,
+				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...settings?.responsive }
+			};
 		} else {
 			throw new Error('Sidebar requires either "config" or "data" prop');
 		}
@@ -154,6 +190,9 @@ export class SidebarContext<T = unknown> {
 		// Initialize state
 		this.collapsed = this.settings.defaultCollapsed;
 		this.#expandedGroupsMap = this.getInitialExpandedGroups();
+
+		// Initialize responsive mode with SSR-safe default
+		this.responsiveMode = this.settings.responsive.defaultMode;
 
 		// Load persisted state (must happen before effect setup)
 		this.loadPersistedState();
@@ -169,6 +208,186 @@ export class SidebarContext<T = unknown> {
 				this.persistState(collapsedValue, expandedMap);
 			});
 		});
+
+		// Set up responsive media queries (client-side only)
+		this.setupResponsiveMediaQueries();
+	}
+
+	// ========================================================================
+	// Responsive Methods
+	// ========================================================================
+
+	/**
+	 * Set up media query listeners for responsive behavior
+	 */
+	private setupResponsiveMediaQueries(): void {
+		if (typeof window === 'undefined') return;
+		if (!this.settings.responsive.enabled) return;
+
+		const { mobileBreakpoint, tabletBreakpoint } = this.settings.responsive;
+
+		// Media query for mobile: max-width < mobileBreakpoint
+		this.#mobileMediaQuery = window.matchMedia(`(max-width: ${mobileBreakpoint - 1}px)`);
+		// Media query for tablet: min-width >= mobileBreakpoint AND max-width < tabletBreakpoint
+		this.#tabletMediaQuery = window.matchMedia(
+			`(min-width: ${mobileBreakpoint}px) and (max-width: ${tabletBreakpoint - 1}px)`
+		);
+
+		// Handler for mobile media query
+		this.#mobileQueryHandler = (e: MediaQueryListEvent) => {
+			if (e.matches) {
+				this.setResponsiveMode('mobile');
+			} else {
+				// Check if tablet matches
+				if (this.#tabletMediaQuery?.matches) {
+					this.setResponsiveMode('tablet');
+				} else {
+					this.setResponsiveMode('desktop');
+				}
+			}
+		};
+
+		// Handler for tablet media query
+		this.#tabletQueryHandler = (e: MediaQueryListEvent) => {
+			if (e.matches) {
+				this.setResponsiveMode('tablet');
+			} else if (!this.#mobileMediaQuery?.matches) {
+				this.setResponsiveMode('desktop');
+			}
+		};
+
+		// Set initial mode based on current viewport
+		if (this.#mobileMediaQuery.matches) {
+			this.setResponsiveMode('mobile');
+		} else if (this.#tabletMediaQuery.matches) {
+			this.setResponsiveMode('tablet');
+		} else {
+			this.setResponsiveMode('desktop');
+		}
+
+		// Add listeners
+		this.#mobileMediaQuery.addEventListener('change', this.#mobileQueryHandler);
+		this.#tabletMediaQuery.addEventListener('change', this.#tabletQueryHandler);
+
+		// Set up escape key handler
+		if (this.settings.responsive.closeOnEscape) {
+			document.addEventListener('keydown', this.#boundEscapeHandler);
+		}
+	}
+
+	/**
+	 * Clean up media query listeners
+	 */
+	destroy(): void {
+		if (typeof window === 'undefined') return;
+
+		if (this.#mobileMediaQuery && this.#mobileQueryHandler) {
+			this.#mobileMediaQuery.removeEventListener('change', this.#mobileQueryHandler);
+		}
+		if (this.#tabletMediaQuery && this.#tabletQueryHandler) {
+			this.#tabletMediaQuery.removeEventListener('change', this.#tabletQueryHandler);
+		}
+		if (this.settings.responsive.closeOnEscape) {
+			document.removeEventListener('keydown', this.#boundEscapeHandler);
+		}
+		// Ensure body scroll is unlocked
+		this.unlockBodyScroll();
+	}
+
+	/**
+	 * Bound escape key handler
+	 */
+	#boundEscapeHandler = (e: KeyboardEvent): void => {
+		if (e.key === 'Escape' && this.drawerOpen && this.responsiveMode === 'mobile') {
+			this.closeDrawer();
+		}
+	};
+
+	/**
+	 * Set the responsive mode
+	 */
+	private setResponsiveMode(mode: SidebarResponsiveMode): void {
+		if (this.responsiveMode === mode) return;
+
+		const previousMode = this.responsiveMode;
+		this.responsiveMode = mode;
+		this.events.onModeChange?.(mode);
+
+		// Close drawer when switching away from mobile mode
+		if (previousMode === 'mobile' && mode !== 'mobile' && this.drawerOpen) {
+			this.closeDrawer();
+		}
+
+		// Auto-collapse in tablet mode
+		if (mode === 'tablet' && !this.collapsed) {
+			this.setCollapsed(true);
+		}
+	}
+
+	/**
+	 * Open the mobile drawer
+	 */
+	openDrawer(): void {
+		if (this.drawerOpen) return;
+		this.drawerOpen = true;
+		this.events.onOpenChange?.(true);
+
+		if (this.settings.responsive.lockBodyScroll) {
+			this.lockBodyScroll();
+		}
+	}
+
+	/**
+	 * Close the mobile drawer
+	 */
+	closeDrawer(): void {
+		if (!this.drawerOpen) return;
+		this.drawerOpen = false;
+		this.events.onOpenChange?.(false);
+
+		if (this.settings.responsive.lockBodyScroll) {
+			this.unlockBodyScroll();
+		}
+	}
+
+	/**
+	 * Toggle the mobile drawer
+	 */
+	toggleDrawer(): void {
+		if (this.drawerOpen) {
+			this.closeDrawer();
+		} else {
+			this.openDrawer();
+		}
+	}
+
+	/**
+	 * Lock body scroll (for mobile drawer)
+	 */
+	private lockBodyScroll(): void {
+		if (typeof document === 'undefined') return;
+		document.body.classList.add('sidebar-scroll-locked');
+	}
+
+	/**
+	 * Unlock body scroll
+	 */
+	private unlockBodyScroll(): void {
+		if (typeof document === 'undefined') return;
+		document.body.classList.remove('sidebar-scroll-locked');
+	}
+
+	/**
+	 * Handle navigation (closes drawer if configured)
+	 */
+	handleNavigation(): void {
+		if (
+			this.settings.responsive.closeOnNavigation &&
+			this.responsiveMode === 'mobile' &&
+			this.drawerOpen
+		) {
+			this.closeDrawer();
+		}
 	}
 
 	// ========================================================================
@@ -288,9 +507,25 @@ export class SidebarContext<T = unknown> {
 				'aria-pressed': isKeyboardDragging ? true : undefined,
 				'aria-grabbed': this.draggedItem?.id === id || isKeyboardDragging ? true : undefined,
 				style: this.dndEnabled ? 'touch-action: none;' : undefined,
+				onmousedown: () => {
+					// Pre-set draggedItem on mousedown so the preview can render before dragstart
+					if (this.dndEnabled && !this.draggedItem) {
+						this.draggedItem = { id, item, parentId, index };
+					}
+				},
 				ondragstart: (e: DragEvent) => {
 					e.dataTransfer?.setData('text/plain', id);
-					this.startDrag(item, parentId, index);
+					// draggedItem is already set from mousedown, just ensure it's correct
+					if (!this.draggedItem || this.draggedItem.id !== id) {
+						this.startDrag(item, parentId, index);
+					}
+					// Use custom drag preview if available (rendered from draggedItem state)
+					const preview = this.#dragPreviewElement;
+					if (preview && e.dataTransfer) {
+						// Use the center of the preview as the drag point
+						const rect = preview.getBoundingClientRect();
+						e.dataTransfer.setDragImage(preview, rect.width / 2, rect.height / 2);
+					}
 				},
 				ondragend: () => {
 					// Defer cleanup to allow ondrop to fire first
@@ -440,6 +675,20 @@ export class SidebarContext<T = unknown> {
 	// ========================================================================
 	// Drag and Drop Methods
 	// ========================================================================
+
+	/**
+	 * Set the custom drag preview element (called by Sidebar component)
+	 */
+	setDragPreviewElement(element: HTMLElement | null): void {
+		this.#dragPreviewElement = element;
+	}
+
+	/**
+	 * Get the custom drag preview element
+	 */
+	getDragPreviewElement(): HTMLElement | null {
+		return this.#dragPreviewElement;
+	}
 
 	/**
 	 * Start dragging an item

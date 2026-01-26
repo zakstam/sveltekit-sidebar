@@ -526,3 +526,192 @@ a.sidebar-group__trigger {
 .sidebar__body::-webkit-scrollbar-thumb:hover {
 	background: hsl(0 0% 70%);
 }
+
+/* ============================================================================
+   Responsive Mode Classes
+   ============================================================================ */
+
+/* Mobile mode - drawer from left */
+.sidebar--mode-mobile {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	height: 100dvh;
+	width: var(--sidebar-drawer-width);
+	z-index: var(--sidebar-drawer-z-index);
+	transform: translateX(-100%);
+	transition: transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	border-right: 1px solid var(--sidebar-border-color);
+	box-shadow: none;
+}
+
+.sidebar--mode-mobile.sidebar--open {
+	transform: translateX(0);
+	box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Tablet mode - collapsed by default */
+.sidebar--mode-tablet {
+	width: var(--sidebar-width-collapsed);
+}
+
+/* Desktop mode - normal expanded behavior */
+.sidebar--mode-desktop {
+	/* Uses default sidebar styles */
+}
+
+/* ============================================================================
+   Sidebar Backdrop (Mobile Mode)
+   ============================================================================ */
+
+.sidebar-backdrop {
+	position: fixed;
+	inset: 0;
+	background: var(--sidebar-backdrop-color);
+	z-index: calc(var(--sidebar-drawer-z-index) - 1);
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		visibility var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-backdrop--visible {
+	opacity: 1;
+	visibility: visible;
+}
+
+/* ============================================================================
+   Mobile Trigger (Hamburger Button)
+   ============================================================================ */
+
+.sidebar-mobile-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--sidebar-mobile-trigger-size);
+	height: var(--sidebar-mobile-trigger-size);
+	padding: 0;
+	border: 1px solid var(--sidebar-trigger-border-color);
+	border-radius: var(--sidebar-border-radius);
+	background: var(--sidebar-trigger-bg);
+	color: var(--sidebar-trigger-color);
+	cursor: pointer;
+	transition: background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-mobile-trigger:hover {
+	background: var(--sidebar-trigger-bg-hover);
+}
+
+.sidebar-mobile-trigger:focus-visible {
+	outline: 2px solid var(--sidebar-item-color-active);
+	outline-offset: 2px;
+}
+
+.sidebar-mobile-trigger__icon {
+	width: 24px;
+	height: 24px;
+}
+
+/* Hide mobile trigger on tablet/desktop by default */
+.sidebar-mobile-trigger--auto-hide {
+	display: none;
+}
+
+@media (max-width: 767px) {
+	.sidebar-mobile-trigger--auto-hide {
+		display: flex;
+	}
+}
+
+/* Mobile trigger container - positioned fixed for easy access */
+.sidebar-mobile-trigger-container {
+	position: fixed;
+	top: 12px;
+	left: 12px;
+	z-index: calc(var(--sidebar-drawer-z-index) - 2);
+}
+
+/* ============================================================================
+   Trigger adjustments for mobile mode
+   ============================================================================ */
+
+/* In mobile mode, position trigger inside the drawer at the top */
+.sidebar--mode-mobile .sidebar__trigger-container {
+	position: static;
+	display: flex;
+	justify-content: flex-end;
+	padding: 8px;
+	border-bottom: 1px solid var(--sidebar-border-color);
+}
+
+.sidebar--mode-mobile .sidebar-trigger {
+	position: static;
+}
+
+/* ============================================================================
+   Body Scroll Lock
+   ============================================================================ */
+
+body.sidebar-scroll-locked {
+	overflow: hidden;
+	position: fixed;
+	width: 100%;
+	height: 100%;
+}
+
+/* ============================================================================
+   Reduced Motion
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+	.sidebar,
+	.sidebar--mode-mobile,
+	.sidebar-backdrop,
+	.sidebar-trigger,
+	.sidebar-mobile-trigger {
+		transition: none;
+	}
+}
+
+/* ============================================================================
+   CSS-only Responsive Fallback (before JS hydrates)
+   ============================================================================ */
+
+@media (max-width: 767px) {
+	.sidebar:not([data-responsive-mode]) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 100vh;
+		height: 100dvh;
+		width: var(--sidebar-drawer-width);
+		z-index: var(--sidebar-drawer-z-index);
+		transform: translateX(-100%);
+	}
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+	.sidebar:not([data-responsive-mode]) {
+		width: var(--sidebar-width-collapsed);
+	}
+}
+
+/* ============================================================================
+   Custom Drag Preview
+   ============================================================================ */
+
+.sidebar-drag-preview {
+	position: fixed;
+	top: -9999px;
+	left: -9999px;
+	z-index: 9999;
+	pointer-events: none;
+	background: var(--sidebar-drag-preview-bg, white);
+	border-radius: var(--sidebar-drag-preview-radius, 8px);
+	box-shadow: var(--sidebar-drag-preview-shadow, 0 8px 24px rgba(0, 0, 0, 0.2));
+	padding: var(--sidebar-drag-preview-padding, 8px 12px);
+	max-width: var(--sidebar-drag-preview-max-width, 280px);
+}

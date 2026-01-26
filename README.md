@@ -776,6 +776,51 @@ The built-in DnD system includes:
 - **Hover-expand** - Collapsed groups auto-expand after hovering during drag
 - **FLIP animations** - Smooth transitions when items change position
 - **Accessible** - Full ARIA support with screen reader announcements
+- **Custom drag preview** - Render any component as the drag preview image
+
+### Custom Drag Preview
+
+Customize the drag preview image using the `dragPreview` snippet:
+
+```svelte
+<Sidebar data={navigation} {schema} draggable={true} onReorder={handleReorder}>
+  {#snippet dragPreview(item, ctx)}
+    <div class="my-drag-preview">
+      <span class="icon">{ctx.meta.emoji}</span>
+      <span class="label">{ctx.label}</span>
+    </div>
+  {/snippet}
+</Sidebar>
+
+<style>
+  .my-drag-preview {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+    font-weight: 500;
+  }
+</style>
+```
+
+The `dragPreview` snippet receives:
+- `item: T` - The item being dragged (your original data)
+- `ctx: SidebarRenderContext<T>` - The render context with `label`, `meta`, `icon`, etc.
+
+You can also customize the default preview styles with CSS variables:
+
+```css
+:root {
+  --sidebar-drag-preview-bg: white;
+  --sidebar-drag-preview-radius: 8px;
+  --sidebar-drag-preview-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  --sidebar-drag-preview-padding: 8px 12px;
+  --sidebar-drag-preview-max-width: 280px;
+}
+```
 
 ---
 
