@@ -8,7 +8,7 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 
 - **Schema System** - Use your own data types without transformation
 - **Render Snippets** - Full control over item rendering
-- **Drag and Drop** - Built-in reordering with HTML5 Drag API
+- **Drag and Drop** - Production-ready reordering with live preview, keyboard, and touch support
 - **Type-safe** - Full TypeScript support with generics
 - **Infinitely nestable** - Groups can contain other groups, to any depth
 - **Collapsible** - Sidebar and groups can be expanded/collapsed
@@ -166,16 +166,32 @@ interface SidebarRenderContext<T = unknown> {
 interface SidebarDnDState {
   enabled: boolean;                // DnD is active (draggable prop is true)
   isDragging: boolean;             // This item is being dragged
-  isDropTarget: boolean;           // Drop indicator showing on this item
+  isKeyboardDragging: boolean;     // Item picked up via keyboard
+  isPointerDragging: boolean;      // Pointer/touch drag active
   handleProps: {                   // Spread on drag handle element
     draggable: boolean;
+    tabIndex: number;
+    role: string;
+    'aria-roledescription': string;
+    'aria-describedby': string;
+    'aria-pressed'?: boolean;
+    'aria-grabbed'?: boolean;
+    style?: string;                // touch-action: none for mobile
     ondragstart: (e: DragEvent) => void;
     ondragend: (e: DragEvent) => void;
+    onkeydown: (e: KeyboardEvent) => void;
+    onpointerdown: (e: PointerEvent) => void;
   };
   dropZoneProps: {                 // Spread on drop zone element
+    'data-sidebar-item-id': string;
+    'data-sidebar-item-kind': string;
     ondragover: (e: DragEvent) => void;
     ondragleave: (e: DragEvent) => void;
     ondrop: (e: DragEvent) => void;
+  };
+  keyboard: {                      // Keyboard DnD state
+    isActive: boolean;             // Whether keyboard drag mode is active
+    announcement: string;          // Screen reader announcement
   };
 }
 ```
@@ -278,6 +294,7 @@ interface SidebarReorderEvent<T = unknown> {
   fromParentId: string | null;     // Source parent ID (null = root)
   toParentId: string | null;       // Target parent ID (null = root)
   depth: number;                   // Target nesting depth
+  position: DropPosition;          // 'before' | 'inside' | 'after'
 }
 ```
 
@@ -655,7 +672,7 @@ When using custom snippets, use `ctx.dnd` to wire up drag-and-drop:
     <li
       class="page"
       class:dragging={ctx.dnd.isDragging}
-      class:drop-target={ctx.dnd.isDropTarget}
+      class:keyboard-dragging={ctx.dnd.isKeyboardDragging}
       {...ctx.dnd.dropZoneProps}
     >
       <div class="page-row">
@@ -671,7 +688,7 @@ When using custom snippets, use `ctx.dnd` to wire up drag-and-drop:
     <li
       class="group"
       class:dragging={ctx.dnd.isDragging}
-      class:drop-target={ctx.dnd.isDropTarget}
+      class:keyboard-dragging={ctx.dnd.isKeyboardDragging}
       {...ctx.dnd.dropZoneProps}
     >
       <div class="group-row">
@@ -695,11 +712,10 @@ When using custom snippets, use `ctx.dnd` to wire up drag-and-drop:
     color: #999;
   }
   .dragging {
-    opacity: 0.5;
+    opacity: 0.4;
   }
-  .drop-target {
+  .keyboard-dragging {
     background: hsl(220 90% 95%);
-    outline: 2px dashed hsl(220 90% 50%);
   }
 </style>
 ```
@@ -749,14 +765,17 @@ Built-in validation prevents invalid drops:
 - **Pages and groups** cannot be dropped at root level (must stay within sections)
 - **Items** cannot be dropped into themselves or their descendants
 
-### Limitations
+### Features
 
-The built-in DnD uses HTML5 Drag API and is intentionally simple. For advanced needs:
+The built-in DnD system includes:
 
-- Touch device optimization → use external library like `svelte-dnd-action`
-- Keyboard-based reordering → implement custom handlers
-- Animated transitions → add CSS transitions to your snippets
-- Drag preview customization → use external library
+- **Live preview** - Items physically reorder as you drag for instant visual feedback
+- **Keyboard support** - Tab to drag handle, Space/Enter to pick up, Arrow keys to move, Enter to drop, Escape to cancel
+- **Touch support** - Long-press (~400ms) to initiate drag on mobile/tablet devices
+- **Auto-scroll** - Sidebar scrolls automatically when dragging near edges
+- **Hover-expand** - Collapsed groups auto-expand after hovering during drag
+- **FLIP animations** - Smooth transitions when items change position
+- **Accessible** - Full ARIA support with screen reader announcements
 
 ---
 
@@ -913,7 +932,8 @@ export {
   SidebarPage,
   SidebarGroup,
   SidebarIcon,
-  SidebarTrigger
+  SidebarTrigger,
+  SidebarLiveRegion
 } from 'sveltekit-sidebar';
 
 // Context
@@ -942,7 +962,10 @@ export type {
   SidebarGroupData,
   SidebarSectionData,
   SidebarReorderEvent,
-  SidebarDnDState
+  SidebarDnDState,
+  DropPosition,
+  KeyboardDragState,
+  PointerDragState
 } from 'sveltekit-sidebar';
 
 // Type Guards

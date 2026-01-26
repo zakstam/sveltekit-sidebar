@@ -34,7 +34,8 @@
 	<li
 		class="sidebar-page"
 		class:sidebar-page--dragging={renderCtx.dnd.isDragging}
-		class:sidebar-page--drop-target={renderCtx.dnd.isDropTarget}
+		class:sidebar-page--keyboard-dragging={renderCtx.dnd.isKeyboardDragging}
+		class:sidebar-page--pointer-dragging={renderCtx.dnd.isPointerDragging}
 		style="--depth: {depth}"
 		{...renderCtx.dnd.dropZoneProps}
 	>

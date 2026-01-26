@@ -330,6 +330,13 @@ a.sidebar-group__trigger {
 	user-select: none;
 	font-size: 12px;
 	letter-spacing: -2px;
+	border-radius: 4px;
+	transition: background-color 150ms ease;
+}
+
+.sidebar-page__drag-handle:hover,
+.sidebar-group__drag-handle:hover {
+	background: var(--sidebar-item-bg-hover);
 }
 
 .sidebar-page__drag-handle:active,
@@ -337,30 +344,46 @@ a.sidebar-group__trigger {
 	cursor: grabbing;
 }
 
-/* Dragging state */
-.sidebar-page--dragging,
-.sidebar-group--dragging {
-	opacity: 0.5;
+.sidebar-page__drag-handle:focus-visible,
+.sidebar-group__drag-handle:focus-visible {
+	outline: 2px solid var(--sidebar-focus-ring-color, hsl(220 90% 50%));
+	outline-offset: 2px;
 }
 
-/* Drop target indicator */
-.sidebar-page--drop-target,
-.sidebar-group--drop-target {
-	background: var(--sidebar-drop-target-bg, hsl(220 90% 95%));
-	outline: 2px dashed var(--sidebar-drop-target-border, hsl(220 90% 50%));
-	outline-offset: -2px;
+/* Keyboard drag active state */
+.sidebar-page__drag-handle[aria-pressed="true"],
+.sidebar-group__drag-handle[aria-pressed="true"] {
+	background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	color: var(--sidebar-drag-active-color, hsl(220 90% 50%));
+}
+
+/* Dragging state - the item being dragged */
+.sidebar-page--dragging,
+.sidebar-group--dragging {
+	opacity: 0.4;
+	background: var(--sidebar-drag-ghost-bg, hsl(220 90% 97%));
 	border-radius: var(--sidebar-item-border-radius);
+}
+
+/* Keyboard dragging state */
+.sidebar-page--keyboard-dragging,
+.sidebar-group--keyboard-dragging {
+	background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	border-radius: var(--sidebar-item-border-radius);
+}
+
+/* Pointer/touch dragging state */
+.sidebar-page--pointer-dragging,
+.sidebar-group--pointer-dragging {
+	opacity: 0.7;
+	transform: scale(1.02);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
 /* Ensure drag handle and link/button are on same row */
 .sidebar-page,
 .sidebar-group {
 	position: relative;
-}
-
-.sidebar-page--drop-target > .sidebar-page__link,
-.sidebar-group--drop-target > .sidebar-group__trigger {
-	background: transparent;
 }
 
 /* Layout for items with drag handle */
@@ -374,6 +397,65 @@ a.sidebar-group__trigger {
 .sidebar-group:has(.sidebar-group__drag-handle) > .sidebar-group__trigger {
 	flex: 1;
 	min-width: 0;
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+	.sidebar-page__drag-handle,
+	.sidebar-group__drag-handle {
+		padding: 8px;
+		margin-right: 2px;
+		touch-action: none;
+	}
+
+	/* Larger touch targets */
+	.sidebar-page__link,
+	.sidebar-group__trigger {
+		min-height: 44px;
+	}
+}
+
+/* Long press visual feedback */
+.sidebar-page__drag-handle--long-press,
+.sidebar-group__drag-handle--long-press {
+	animation: longPressScale 400ms ease-out forwards;
+}
+
+@keyframes longPressScale {
+	0% {
+		transform: scale(1);
+		background: transparent;
+	}
+	100% {
+		transform: scale(1.1);
+		background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	}
+}
+
+/* Screen reader only text */
+.sidebar-dnd-instructions {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Live region for announcements */
+.sidebar-live-region {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
 }
 
 /* ============================================================================

@@ -12,15 +12,30 @@
 <!--
 	Recursive rendering of sidebar items using snippets.
 	This enables infinite nesting of groups within groups.
+	Uses preview-reordered items during drag for live feedback.
 -->
 {#snippet renderItems(itemList: T[], currentDepth: number, currentParentId: string | null)}
-	<ul class="sidebar-items" class:sidebar-items--nested={currentDepth > 0}>
-		{#each itemList as item, index (ctx.getId(item))}
+	{@const previewList = ctx.getItemsWithPreview(itemList, currentParentId)}
+	<ul
+		class="sidebar-items"
+		class:sidebar-items--nested={currentDepth > 0}
+	>
+		{#each previewList as item, index (ctx.getId(item))}
 			{@const kind = ctx.getKind(item)}
 			{#if kind === 'page'}
-				<SidebarPage {item} depth={currentDepth} parentId={currentParentId} {index} />
+				<SidebarPage
+					{item}
+					depth={currentDepth}
+					parentId={currentParentId}
+					{index}
+				/>
 			{:else if kind === 'group'}
-				<SidebarGroup {item} depth={currentDepth} parentId={currentParentId} {index}>
+				<SidebarGroup
+					{item}
+					depth={currentDepth}
+					parentId={currentParentId}
+					{index}
+				>
 					{#snippet children()}
 						{@render renderItems(ctx.getItems(item), currentDepth + 1, ctx.getId(item))}
 					{/snippet}

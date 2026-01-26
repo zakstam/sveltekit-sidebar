@@ -116,6 +116,11 @@ export interface SidebarState {
 // ============================================================================
 
 /**
+ * Drop position relative to target element
+ */
+export type DropPosition = 'before' | 'inside' | 'after';
+
+/**
  * Event fired when a drag-and-drop reorder completes
  */
 export interface SidebarReorderEvent<T = unknown> {
@@ -131,6 +136,54 @@ export interface SidebarReorderEvent<T = unknown> {
 	toParentId: string | null;
 	/** Target nesting depth */
 	depth: number;
+	/** Position relative to target ('before', 'inside', 'after') */
+	position: DropPosition;
+}
+
+/**
+ * State for keyboard-based drag and drop
+ */
+export interface KeyboardDragState<T = unknown> {
+	/** The item being moved */
+	item: T;
+	/** ID of the item being moved */
+	id: string;
+	/** Original parent ID */
+	originalParentId: string | null;
+	/** Original index in parent */
+	originalIndex: number;
+	/** Current virtual position in sibling list */
+	currentIndex: number;
+	/** Current parent ID (may change during keyboard navigation) */
+	currentParentId: string | null;
+	/** Siblings at current level for navigation */
+	siblings: T[];
+}
+
+/**
+ * State for pointer/touch-based drag and drop
+ */
+export interface PointerDragState<T = unknown> {
+	/** The item being dragged */
+	item: T;
+	/** ID of the item being dragged */
+	id: string;
+	/** Parent ID of the dragged item */
+	parentId: string | null;
+	/** Index of the dragged item */
+	index: number;
+	/** Starting X coordinate */
+	startX: number;
+	/** Starting Y coordinate */
+	startY: number;
+	/** Current X coordinate */
+	currentX: number;
+	/** Current Y coordinate */
+	currentY: number;
+	/** Whether drag threshold has been met (long-press complete) */
+	isDragging: boolean;
+	/** Timer ID for long-press detection */
+	longPressTimer: ReturnType<typeof setTimeout> | null;
 }
 
 /**
@@ -141,19 +194,39 @@ export interface SidebarDnDState {
 	enabled: boolean;
 	/** This item is currently being dragged */
 	isDragging: boolean;
-	/** Drop indicator is showing on this item */
-	isDropTarget: boolean;
+	/** Whether this item is picked up via keyboard */
+	isKeyboardDragging: boolean;
+	/** Whether pointer/touch drag is active */
+	isPointerDragging: boolean;
 	/** Props to spread on drag handle element */
 	handleProps: {
 		draggable: boolean;
+		tabIndex: number;
+		role: string;
+		'aria-roledescription': string;
+		'aria-describedby': string;
+		'aria-pressed'?: boolean;
+		'aria-grabbed'?: boolean;
+		style?: string;
 		ondragstart: (e: DragEvent) => void;
 		ondragend: (e: DragEvent) => void;
+		onkeydown: (e: KeyboardEvent) => void;
+		onpointerdown: (e: PointerEvent) => void;
 	};
 	/** Props to spread on drop zone element */
 	dropZoneProps: {
+		'data-sidebar-item-id': string;
+		'data-sidebar-item-kind': string;
 		ondragover: (e: DragEvent) => void;
 		ondragleave: (e: DragEvent) => void;
 		ondrop: (e: DragEvent) => void;
+	};
+	/** Keyboard DnD state and handlers */
+	keyboard: {
+		/** Whether keyboard drag mode is active for this item */
+		isActive: boolean;
+		/** Current position announcement for screen readers */
+		announcement: string;
 	};
 }
 

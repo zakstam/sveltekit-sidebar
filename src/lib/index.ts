@@ -23,7 +23,10 @@ export type {
 	SidebarRenderContext,
 	// Drag and Drop types
 	SidebarReorderEvent,
-	SidebarDnDState
+	SidebarDnDState,
+	DropPosition,
+	KeyboardDragState,
+	PointerDragState
 } from './types.js';
 
 // Conflicting types (renamed to avoid collision with component names)
@@ -56,7 +59,8 @@ export {
 	SidebarPage,
 	SidebarGroup,
 	SidebarIcon,
-	SidebarTrigger
+	SidebarTrigger,
+	SidebarLiveRegion
 } from './components/index.js';
 
 // ============================================================================

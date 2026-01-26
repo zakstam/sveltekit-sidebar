@@ -182,7 +182,6 @@
 				<section
 					class="custom-section"
 					class:custom-section--dragging={ctx.dnd.isDragging}
-					class:custom-section--drop-target={ctx.dnd.isDropTarget}
 					style="--section-color: var(--color-{ctx.meta.color})"
 					{...ctx.dnd.dropZoneProps}
 				>
@@ -204,7 +203,6 @@
 					class="custom-group"
 					class:custom-group--expanded={ctx.isExpanded}
 					class:custom-group--dragging={ctx.dnd.isDragging}
-					class:custom-group--drop-target={ctx.dnd.isDropTarget}
 					{...ctx.dnd.dropZoneProps}
 				>
 					<div class="custom-group__row">
@@ -230,7 +228,6 @@
 					class="custom-page"
 					class:custom-page--active={ctx.isActive}
 					class:custom-page--dragging={ctx.dnd.isDragging}
-					class:custom-page--drop-target={ctx.dnd.isDropTarget}
 					{...ctx.dnd.dropZoneProps}
 				>
 					<div class="custom-page__row">
@@ -394,14 +391,7 @@
 	}
 
 	.custom-section--dragging {
-		opacity: 0.5;
-	}
-
-	.custom-section--drop-target {
-		background: hsl(220 90% 95%);
-		outline: 2px dashed hsl(220 90% 50%);
-		outline-offset: -2px;
-		border-radius: 6px;
+		opacity: 0.4;
 	}
 
 	.custom-section__header {
@@ -440,14 +430,7 @@
 	}
 
 	.custom-group--dragging {
-		opacity: 0.5;
-	}
-
-	.custom-group--drop-target {
-		background: hsl(220 90% 95%);
-		outline: 2px dashed hsl(220 90% 50%);
-		outline-offset: -2px;
-		border-radius: 6px;
+		opacity: 0.4;
 	}
 
 	.custom-group__trigger {
@@ -497,14 +480,7 @@
 	}
 
 	.custom-page--dragging {
-		opacity: 0.5;
-	}
-
-	.custom-page--drop-target {
-		background: hsl(220 90% 95%);
-		outline: 2px dashed hsl(220 90% 50%);
-		outline-offset: -2px;
-		border-radius: 6px;
+		opacity: 0.4;
 	}
 
 	.custom-page__link {

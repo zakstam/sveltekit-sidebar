@@ -12,6 +12,7 @@
 	import { createSidebarContext } from '../context.svelte.js';
 	import SidebarContent from './SidebarContent.svelte';
 	import SidebarTrigger from './SidebarTrigger.svelte';
+	import SidebarLiveRegion from './SidebarLiveRegion.svelte';
 
 	let {
 		// New API
@@ -117,6 +118,18 @@
 	const cssVars = $derived(
 		`--sidebar-width: ${ctx.width}; --sidebar-animation-duration: ${ctx.settings.animationDuration}ms;`
 	);
+
+	// Scroll container binding for auto-scroll during drag
+	let scrollContainer: HTMLElement;
+
+	$effect(() => {
+		if (scrollContainer) {
+			ctx.setScrollContainer(scrollContainer);
+		}
+		return () => {
+			ctx.setScrollContainer(null);
+		};
+	});
 </script>
 
 <aside
@@ -131,13 +144,17 @@
 		</div>
 	{/if}
 
-	<div class="sidebar__body">
+	<div class="sidebar__body" bind:this={scrollContainer}>
 		{#if children}
 			{@render children()}
 		{:else}
 			<SidebarContent />
 		{/if}
 	</div>
+
+	{#if draggable}
+		<SidebarLiveRegion />
+	{/if}
 
 	{#if footer}
 		<div class="sidebar__footer">

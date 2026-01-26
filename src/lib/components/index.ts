@@ -6,3 +6,4 @@ export { default as SidebarPage } from './SidebarPage.svelte';
 export { default as SidebarGroup } from './SidebarGroup.svelte';
 export { default as SidebarIcon } from './SidebarIcon.svelte';
 export { default as SidebarTrigger } from './SidebarTrigger.svelte';
+export { default as SidebarLiveRegion } from './SidebarLiveRegion.svelte';
