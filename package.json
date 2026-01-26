@@ -1,6 +1,6 @@
 {
   "name": "sveltekit-sidebar",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A type-safe, infinitely nestable sidebar component library for SvelteKit",
   "type": "module",
   "scripts": {
