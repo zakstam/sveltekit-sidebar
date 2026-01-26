@@ -26,7 +26,7 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 ## Installation
 
 ```bash
-npm install sveltekit-sidebar
+npm install github:zakstam/sveltekit-sidebar
 ```
 
 ---
