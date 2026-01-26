@@ -12,6 +12,7 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 - **Responsive** - Built-in mobile drawer, tablet collapsed, and desktop modes
 - **Type-safe** - Full TypeScript support with generics
 - **Infinitely nestable** - Groups can contain other groups, to any depth
+- **Flexible structure** - Pages and groups can live at root level or inside sections
 - **Collapsible** - Sidebar and groups can be expanded/collapsed
 - **Navigable groups** - Groups can optionally have their own href
 - **Persistent state** - Remembers collapsed/expanded state via localStorage
@@ -45,6 +46,21 @@ Use the built-in types with a config object:
 
   const config = {
     sections: [
+      // Root-level page (no section wrapper needed)
+      { kind: 'page', id: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: '📊' },
+
+      // Root-level group
+      {
+        kind: 'group',
+        id: 'quick-actions',
+        label: 'Quick Actions',
+        icon: '⚡',
+        items: [
+          { kind: 'page', id: 'new', label: 'New Project', href: '/new' }
+        ]
+      },
+
+      // Section with nested items
       {
         kind: 'section',
         id: 'main',
@@ -203,6 +219,9 @@ interface SidebarDnDState {
 ```typescript
 type SidebarItem = SidebarPage | SidebarGroup;
 
+// Root-level items can be sections, pages, or groups
+type SidebarRootItem = SidebarSection | SidebarItem;
+
 interface SidebarPage {
   kind: 'page';
   id: string;
@@ -237,7 +256,7 @@ interface SidebarSection {
 }
 
 interface SidebarConfig {
-  sections: SidebarSection[];
+  sections: SidebarRootItem[];  // Accepts sections, pages, or groups at root level
   settings?: SidebarSettings;
 }
 
@@ -1060,8 +1079,8 @@ function handleReorder(event: SidebarReorderEvent<NavItem>) {
 
 Built-in validation prevents invalid drops:
 
-- **Sections** can only be dropped next to other sections (root level)
-- **Pages and groups** cannot be dropped at root level (must stay within sections)
+- **Sections** can only be dropped at root level (next to other root items)
+- **Pages and groups** can be dropped at root level or within sections/groups
 - **Items** cannot be dropped into themselves or their descendants
 
 ### Features
@@ -1483,6 +1502,7 @@ export {
 // Types
 export type {
   SidebarItem,
+  SidebarRootItem,
   SidebarConfig,
   SidebarSettings,
   SidebarState,

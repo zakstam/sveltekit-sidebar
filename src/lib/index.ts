@@ -5,6 +5,7 @@
 // Non-conflicting types (exported with original names)
 export type {
 	SidebarItem,
+	SidebarRootItem,
 	SidebarConfig,
 	SidebarSettings,
 	SidebarState,

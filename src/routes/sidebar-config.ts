@@ -2,6 +2,36 @@ import type { SidebarConfig } from '$lib/types.js';
 
 export const sidebarConfig: SidebarConfig = {
 	sections: [
+		// Root-level page (no section wrapper)
+		{
+			kind: 'page',
+			id: 'dashboard',
+			label: 'Dashboard',
+			href: '/dashboard',
+			icon: '📊'
+		},
+		// Root-level group (no section wrapper)
+		{
+			kind: 'group',
+			id: 'quick-actions',
+			label: 'Quick Actions',
+			icon: '⚡',
+			defaultExpanded: true,
+			items: [
+				{
+					kind: 'page',
+					id: 'new-project',
+					label: 'New Project',
+					href: '/quick/new-project'
+				},
+				{
+					kind: 'page',
+					id: 'import',
+					label: 'Import',
+					href: '/quick/import'
+				}
+			]
+		},
 		{
 			kind: 'section',
 			id: 'main',

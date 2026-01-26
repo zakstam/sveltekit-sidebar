@@ -3,9 +3,10 @@ import type {
 	SidebarSection,
 	SidebarItem,
 	SidebarPage,
-	SidebarGroup
+	SidebarGroup,
+	SidebarRootItem
 } from '../types.js';
-import { isPage, isGroup } from '../types.js';
+import { isPage, isGroup, isSection } from '../types.js';
 
 /**
  * Extract all pages from a sidebar configuration (flat list)
@@ -24,8 +25,14 @@ export function getAllPages(config: SidebarConfig): SidebarPage[] {
 		}
 	}
 
-	for (const section of config.sections) {
-		processItems(section.items);
+	for (const rootItem of config.sections) {
+		if (isSection(rootItem)) {
+			processItems(rootItem.items);
+		} else if (isPage(rootItem)) {
+			pages.push(rootItem);
+		} else if (isGroup(rootItem)) {
+			processItems(rootItem.items);
+		}
 	}
 
 	return pages;
@@ -37,15 +44,18 @@ export function getAllPages(config: SidebarConfig): SidebarPage[] {
 export function findItemById(
 	config: SidebarConfig,
 	id: string
-): SidebarItem | SidebarSection | undefined {
-	// Check sections first
-	for (const section of config.sections) {
-		if (section.id === id) {
-			return section;
+): SidebarRootItem | undefined {
+	for (const rootItem of config.sections) {
+		// Check if this root item itself matches
+		if (rootItem.id === id) {
+			return rootItem;
 		}
 
-		const found = findInItems(section.items, id);
-		if (found) return found;
+		// Search inside sections and groups
+		if (isSection(rootItem) || isGroup(rootItem)) {
+			const found = findInItems(rootItem.items, id);
+			if (found) return found;
+		}
 	}
 
 	return undefined;
@@ -85,13 +95,21 @@ export function getItemPath(config: SidebarConfig, targetId: string): string[] {
 		return null;
 	}
 
-	for (const section of config.sections) {
-		if (section.id === targetId) {
+	for (const rootItem of config.sections) {
+		// Check if this root item itself is the target
+		if (rootItem.id === targetId) {
 			return [];
 		}
 
-		const result = findPath(section.items, []);
-		if (result) return result;
+		if (isSection(rootItem)) {
+			// Search inside sections
+			const result = findPath(rootItem.items, []);
+			if (result) return result;
+		} else if (isGroup(rootItem)) {
+			// Root-level group: search its children
+			const result = findPath(rootItem.items, [rootItem.id]);
+			if (result) return result;
+		}
 	}
 
 	return [];
@@ -120,8 +138,13 @@ export function getAllGroupIds(config: SidebarConfig): string[] {
 		}
 	}
 
-	for (const section of config.sections) {
-		processItems(section.items);
+	for (const rootItem of config.sections) {
+		if (isSection(rootItem)) {
+			processItems(rootItem.items);
+		} else if (isGroup(rootItem)) {
+			ids.push(rootItem.id);
+			processItems(rootItem.items);
+		}
 	}
 
 	return ids;
@@ -145,8 +168,15 @@ export function countItems(config: SidebarConfig): { pages: number; groups: numb
 		}
 	}
 
-	for (const section of config.sections) {
-		processItems(section.items);
+	for (const rootItem of config.sections) {
+		if (isSection(rootItem)) {
+			processItems(rootItem.items);
+		} else if (isPage(rootItem)) {
+			pages++;
+		} else if (isGroup(rootItem)) {
+			groups++;
+			processItems(rootItem.items);
+		}
 	}
 
 	return { pages, groups, total: pages + groups };

@@ -157,6 +157,16 @@
 		ctx.animated = animated;
 	});
 
+	// Sync data prop to context when it changes (for DnD reordering)
+	// We need to access `data` to track it, then always sync to context
+	$effect.pre(() => {
+		// Access data to establish dependency tracking
+		const currentData = data;
+		if (currentData) {
+			ctx.data = currentData;
+		}
+	});
+
 	// Sync drag preview element to context immediately when available
 	$effect.pre(() => {
 		if (dragPreviewElement) {

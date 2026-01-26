@@ -67,6 +67,12 @@ export interface SidebarSection {
 	defaultExpanded?: boolean;
 }
 
+/**
+ * Union type for items that can appear at the root level of the sidebar.
+ * Allows pages and groups directly at root without requiring a section wrapper.
+ */
+export type SidebarRootItem = SidebarSection | SidebarItem;
+
 // ============================================================================
 // Configuration Types
 // ============================================================================
@@ -240,7 +246,7 @@ export interface SidebarSettings {
  * Root configuration object
  */
 export interface SidebarConfig {
-	sections: SidebarSection[];
+	sections: SidebarRootItem[];
 	settings?: SidebarSettings;
 }
 
@@ -418,21 +424,21 @@ export interface SidebarEvents {
 /**
  * Type guard for SidebarPage
  */
-export function isPage(item: SidebarItem | SidebarSection): item is SidebarPage {
+export function isPage(item: SidebarRootItem): item is SidebarPage {
 	return item.kind === 'page';
 }
 
 /**
  * Type guard for SidebarGroup
  */
-export function isGroup(item: SidebarItem | SidebarSection): item is SidebarGroup {
+export function isGroup(item: SidebarRootItem): item is SidebarGroup {
 	return item.kind === 'group';
 }
 
 /**
  * Type guard for SidebarSection
  */
-export function isSection(item: SidebarItem | SidebarSection): item is SidebarSection {
+export function isSection(item: SidebarRootItem): item is SidebarSection {
 	return item.kind === 'section';
 }
 

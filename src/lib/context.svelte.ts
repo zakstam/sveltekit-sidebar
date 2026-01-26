@@ -737,8 +737,17 @@ export class SidebarContext<T = unknown> {
 				},
 				ondragend: () => {
 					// Defer cleanup to allow ondrop to fire first
-					// If draggedItem is still set, the drop was cancelled - animate back
+					// If draggedItem is still set but we have a valid drop target, trigger the drop manually
+					// (workaround for browsers not firing ondrop in some edge cases)
 					setTimeout(() => {
+						if (this.draggedItem && this.dropTargetId && this.dropPosition) {
+							const targetInfo = this.findItemById(this.dropTargetId);
+							if (targetInfo) {
+								const depth = this.calculateDepth(targetInfo.parentId);
+								this.handleDrop(targetInfo.item, targetInfo.parentId, targetInfo.index, depth);
+								return;
+							}
+						}
 						const wasCancelled = this.draggedItem !== null;
 						this.endDrag(wasCancelled);
 					}, 0);
@@ -759,13 +768,24 @@ export class SidebarContext<T = unknown> {
 					this.setDropTarget(item, parentId, e);
 				},
 				ondragleave: (e: DragEvent) => {
-					// Only clear if we're actually leaving this element (not entering a child)
+					// Only clear if we're actually leaving this element (not entering a child or another drop zone)
 					const relatedTarget = e.relatedTarget as Node | null;
 					const currentTarget = e.currentTarget as Node | null;
+
+					// Check if moving to a child element
 					if (relatedTarget && currentTarget?.contains(relatedTarget)) {
-						// Moving to a child element, don't clear
 						return;
 					}
+
+					// Check if moving to another drop zone or sidebar element
+					// In this case, let the new drop zone's ondragover handle setting the target
+					const relatedElement = relatedTarget as HTMLElement | null;
+					if (relatedElement?.closest?.('[data-sidebar-item-id]') ||
+						relatedElement?.closest?.('.sidebar-items') ||
+						relatedElement?.closest?.('.sidebar-content')) {
+						return;
+					}
+
 					if (this.dropTargetId === id) {
 						this.setDropTarget(null);
 						this.cancelHoverExpandTimer();
@@ -1080,10 +1100,7 @@ export class SidebarContext<T = unknown> {
 				return; // Don't highlight invalid target
 			}
 
-			// Non-sections cannot be dropped at root level
-			if (draggedKind !== 'section' && effectiveParentId === null) {
-				return; // Don't highlight invalid target
-			}
+			// Note: Non-sections CAN be dropped at root level (alongside sections)
 
 			// Prevent highlighting if dropping on self or descendant
 			if (this.isDropDescendantOf(targetId, this.draggedItem.id)) {
@@ -1375,15 +1392,12 @@ export class SidebarContext<T = unknown> {
 			toIndex = targetIndex + 1;
 		}
 
-		// Validate the move
+		// Validate the move: sections can only be at root level
 		if (draggedKind === 'section' && toParentId !== null) {
 			this.previewInsert = null;
 			return;
 		}
-		if (draggedKind !== 'section' && toParentId === null) {
-			this.previewInsert = null;
-			return;
-		}
+		// Note: Non-sections CAN be dropped at root level (alongside sections)
 
 		// Adjust index if moving within same parent and source is before target
 		if (this.draggedItem.parentId === toParentId && this.draggedItem.index < toIndex) {
@@ -2187,12 +2201,24 @@ export class SidebarContext<T = unknown> {
 			}
 		};
 
-		for (const section of this.data) {
-			const kind = this.getKind(section);
+		for (const rootItem of this.data) {
+			const kind = this.getKind(rootItem);
 			if (kind === 'section') {
-				const items = this.getItems(section);
+				// Process items inside sections
+				const items = this.getItems(rootItem);
 				processItems(items);
+			} else if (kind === 'group') {
+				// Root-level group: check its defaultExpanded and process children
+				const id = this.getId(rootItem);
+				if (this.schema.getDefaultExpanded?.(rootItem)) {
+					expanded[id] = true;
+				}
+				const children = this.getItems(rootItem);
+				if (children.length > 0) {
+					processItems(children);
+				}
 			}
+			// Root-level pages have no children to process
 		}
 
 		return expanded;
@@ -2265,10 +2291,27 @@ export class SidebarContext<T = unknown> {
 			return null;
 		};
 
-		for (const section of this.data) {
-			const items = this.getItems(section);
-			const result = findPath(items, []);
-			if (result) return result;
+		for (const rootItem of this.data) {
+			const id = this.getId(rootItem);
+			const kind = this.getKind(rootItem);
+
+			// Check if this root item itself is the target
+			if (id === targetId) {
+				return [];
+			}
+
+			if (kind === 'section') {
+				// Search inside sections
+				const items = this.getItems(rootItem);
+				const result = findPath(items, []);
+				if (result) return result;
+			} else if (kind === 'group') {
+				// Root-level group: search its children
+				const children = this.getItems(rootItem);
+				const result = findPath(children, [id]);
+				if (result) return result;
+			}
+			// Root-level pages have no children to search
 		}
 
 		return [];
