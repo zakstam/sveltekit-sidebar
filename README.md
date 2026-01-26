@@ -250,6 +250,9 @@ interface SidebarSettings {
   storageKey?: string;           // Default: 'sveltekit-sidebar'
   defaultCollapsed?: boolean;    // Default: false
   responsive?: SidebarResponsiveSettings;  // Responsive behavior
+  dnd?: SidebarDnDSettings;              // Drag-and-drop settings
+  labels?: SidebarLabels;                // ARIA labels (i18n support)
+  announcements?: SidebarAnnouncements;  // Screen reader announcements
 }
 
 interface SidebarResponsiveSettings {
@@ -270,9 +273,77 @@ interface SidebarEvents {
   onNavigate?: (page: SidebarPage) => void;
   onOpenChange?: (open: boolean) => void;           // Mobile drawer open/close
   onModeChange?: (mode: SidebarResponsiveMode) => void;  // Responsive mode change
+
+  // Preventable events (return false to prevent the action)
+  onBeforeNavigate?: (page: SidebarPage) => boolean | void;
+  onBeforeReorder?: (event: SidebarReorderEvent) => boolean | void;
+  onBeforeGroupToggle?: (groupId: string, willExpand: boolean) => boolean | void;
+  onBeforeCollapsedChange?: (willCollapse: boolean) => boolean | void;
+  onBeforeOpenChange?: (willOpen: boolean) => boolean | void;
 }
 
 type SidebarIcon = Component<{ class?: string }> | string | Snippet<[{ class?: string }]>;
+
+// Drag-and-drop settings
+interface SidebarDnDSettings {
+  longPressDelay?: number;       // Touch long-press delay in ms (default: 400)
+  hoverExpandDelay?: number;     // Hover-expand delay in ms (default: 500)
+  autoScrollThreshold?: number;  // Auto-scroll trigger distance in px (default: 50)
+  autoScrollMaxSpeed?: number;   // Max auto-scroll speed in px/frame (default: 15)
+  rectCacheInterval?: number;    // Drop zone rect cache interval in ms (default: 100)
+  keyboard?: SidebarKeyboardShortcuts;  // Keyboard shortcuts
+}
+
+interface SidebarKeyboardShortcuts {
+  pickUpDrop?: string[];         // Keys to pick up/drop (default: [' ', 'Enter'])
+  moveUp?: string;               // Move up key (default: 'ArrowUp')
+  moveDown?: string;             // Move down key (default: 'ArrowDown')
+  moveToParent?: string;         // Move to parent key (default: 'ArrowLeft')
+  moveIntoGroup?: string;        // Move into group key (default: 'ArrowRight')
+  cancel?: string;               // Cancel key (default: 'Escape')
+}
+
+// ARIA labels (i18n support)
+interface SidebarLabels {
+  navigation?: {
+    main?: string;               // "Sidebar navigation"
+    mobileDrawer?: string;       // "Navigation menu"
+  };
+  trigger?: {
+    expand?: string;             // "Expand sidebar"
+    collapse?: string;           // "Collapse sidebar"
+    openMenu?: string;           // "Open navigation menu"
+    closeMenu?: string;          // "Close navigation menu"
+  };
+  group?: {
+    expand?: string;             // "Expand"
+    collapse?: string;           // "Collapse"
+  };
+  link?: {
+    external?: string;           // "Opens in new tab"
+  };
+  dnd?: {
+    draggableItem?: string;      // "Draggable item"
+    instructions?: string;       // Full DnD instructions text
+  };
+}
+
+// Screen reader announcements (use placeholders: {label}, {position}, {target}, {index}, {count})
+interface SidebarAnnouncements {
+  pickedUp?: string;             // "Picked up {label}. Use arrow keys..."
+  moved?: string;                // "Moved {position} {target}. Position {index} of {count}."
+  dropped?: string;              // "Dropped {label}. Reorder complete."
+  cancelled?: string;            // "Cancelled. {label} returned to original position."
+  atTop?: string;                // "At the top of the list"
+  atBottom?: string;             // "At the bottom of the list"
+  atTopLevel?: string;           // "Already at the top level"
+  noGroupAbove?: string;         // "No group above to move into"
+  notAGroup?: string;            // "Previous item is not a group"
+  movedOutOf?: string;           // "Moved out of {target}. Now at parent level."
+  movedInto?: string;            // "Moved into {target}. Position {index}."
+  touchDragStarted?: string;     // "Dragging {label}. Move finger to reposition."
+  groupExpanded?: string;        // "Expanded group"
+}
 ```
 
 ### Sidebar Component Props
@@ -612,6 +683,192 @@ class SidebarContext<T = unknown> {
   }}
 />
 ```
+
+---
+
+## Preventable Events
+
+Use `onBefore*` events to intercept and optionally prevent actions by returning `false`:
+
+```svelte
+<script lang="ts">
+  let hasUnsavedChanges = $state(false);
+</script>
+
+<Sidebar
+  config={sidebarConfig}
+  events={{
+    // Confirm before navigating away with unsaved changes
+    onBeforeNavigate: (page) => {
+      if (hasUnsavedChanges) {
+        return confirm('You have unsaved changes. Leave anyway?');
+      }
+    },
+
+    // Prevent reordering of certain items
+    onBeforeReorder: (event) => {
+      // Prevent moving the "home" item
+      if (event.item.id === 'home') {
+        return false;
+      }
+    },
+
+    // Confirm before collapsing sidebar
+    onBeforeCollapsedChange: (willCollapse) => {
+      if (willCollapse) {
+        console.log('Sidebar is about to collapse');
+      }
+      // Return false to prevent, or nothing/true to allow
+    },
+
+    // Prevent certain groups from being toggled
+    onBeforeGroupToggle: (groupId, willExpand) => {
+      if (groupId === 'locked-group') {
+        return false;  // Prevent toggle
+      }
+    },
+
+    // Control mobile drawer opening
+    onBeforeOpenChange: (willOpen) => {
+      // Allow close but prevent open in certain conditions
+      if (willOpen && someCondition) {
+        return false;
+      }
+    }
+  }}
+/>
+```
+
+---
+
+## Customization
+
+### DnD Timing Settings
+
+Customize drag-and-drop timing for different use cases:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  draggable={true}
+  settings={{
+    dnd: {
+      // Longer delay for mobile users (default: 400ms)
+      longPressDelay: 600,
+
+      // Slower hover-expand for precision (default: 500ms)
+      hoverExpandDelay: 750,
+
+      // Larger auto-scroll zone (default: 50px)
+      autoScrollThreshold: 80,
+
+      // Slower auto-scroll (default: 15px/frame)
+      autoScrollMaxSpeed: 10,
+
+      // More frequent rect updates during drag (default: 100ms)
+      rectCacheInterval: 50
+    }
+  }}
+/>
+```
+
+### Custom Keyboard Shortcuts
+
+Customize the keyboard shortcuts for drag-and-drop:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  draggable={true}
+  settings={{
+    dnd: {
+      keyboard: {
+        // Custom pick up/drop keys
+        pickUpDrop: ['Enter'],  // Remove Space to avoid conflicts
+
+        // Use WASD instead of arrow keys
+        moveUp: 'w',
+        moveDown: 's',
+        moveToParent: 'a',
+        moveIntoGroup: 'd',
+
+        // Use 'q' to cancel
+        cancel: 'q'
+      }
+    }
+  }}
+/>
+```
+
+### Internationalization (i18n)
+
+Customize ARIA labels for different languages:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  settings={{
+    labels: {
+      navigation: {
+        main: 'Navigation latérale',        // French: "Sidebar navigation"
+        mobileDrawer: 'Menu de navigation'  // French: "Navigation menu"
+      },
+      trigger: {
+        expand: 'Développer la barre latérale',
+        collapse: 'Réduire la barre latérale',
+        openMenu: 'Ouvrir le menu',
+        closeMenu: 'Fermer le menu'
+      },
+      group: {
+        expand: 'Développer',
+        collapse: 'Réduire'
+      },
+      link: {
+        external: 'Ouvre dans un nouvel onglet'
+      },
+      dnd: {
+        draggableItem: 'Élément déplaçable',
+        instructions: 'Appuyez sur Espace ou Entrée pour sélectionner. Utilisez les touches fléchées pour déplacer. Appuyez sur Entrée pour déposer ou Échap pour annuler.'
+      }
+    }
+  }}
+/>
+```
+
+### Custom Screen Reader Announcements
+
+Customize the announcements for screen readers with placeholder support:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  draggable={true}
+  settings={{
+    announcements: {
+      pickedUp: 'Élément "{label}" sélectionné. Utilisez les flèches pour déplacer.',
+      moved: 'Déplacé {position} "{target}". Position {index} sur {count}.',
+      dropped: '"{label}" déposé. Réorganisation terminée.',
+      cancelled: 'Annulé. "{label}" revenu à sa position initiale.',
+      atTop: 'En haut de la liste',
+      atBottom: 'En bas de la liste',
+      atTopLevel: 'Déjà au niveau racine',
+      noGroupAbove: 'Pas de groupe au-dessus',
+      notAGroup: "L'élément précédent n'est pas un groupe",
+      movedOutOf: 'Sorti de "{target}". Maintenant au niveau parent.',
+      movedInto: 'Entré dans "{target}". Position {index}.',
+      touchDragStarted: 'Déplacement de "{label}". Bougez le doigt pour repositionner.',
+      groupExpanded: 'Groupe développé'
+    }
+  }}
+/>
+```
+
+Available placeholders:
+- `{label}` - The label of the dragged item
+- `{target}` - The label of the target item
+- `{position}` - Position relative to target ("before" or "after")
+- `{index}` - Current position (1-based)
+- `{count}` - Total items in the list
 
 ---
 
@@ -1245,7 +1502,12 @@ export type {
   KeyboardDragState,
   PointerDragState,
   SidebarResponsiveSettings,
-  SidebarResponsiveMode
+  SidebarResponsiveMode,
+  // Customization types
+  SidebarDnDSettings,
+  SidebarKeyboardShortcuts,
+  SidebarLabels,
+  SidebarAnnouncements
 } from 'sveltekit-sidebar';
 
 // Type Guards

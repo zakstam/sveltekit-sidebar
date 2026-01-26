@@ -288,7 +288,7 @@
 	data-responsive-mode={isResponsiveEnabled ? responsiveMode : undefined}
 	role={isMobileMode ? 'dialog' : undefined}
 	aria-modal={isMobileMode && drawerOpen ? 'true' : undefined}
-	aria-label={isMobileMode ? 'Navigation menu' : undefined}
+	aria-label={isMobileMode ? ctx.labels.navigation.mobileDrawer : undefined}
 >
 	{#if header}
 		<div class="sidebar__header">

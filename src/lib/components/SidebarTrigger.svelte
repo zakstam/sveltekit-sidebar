@@ -21,10 +21,10 @@
 	// Determine aria-label based on mode
 	const ariaLabel = $derived(
 		isMobileMode
-			? 'Close navigation menu'
+			? ctx.labels.trigger.closeMenu
 			: isCollapsed
-				? 'Expand sidebar'
-				: 'Collapse sidebar'
+				? ctx.labels.trigger.expand
+				: ctx.labels.trigger.collapse
 	);
 </script>
 

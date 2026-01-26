@@ -9,8 +9,7 @@
 
 <!-- Hidden instructions for screen readers -->
 <div id="sidebar-dnd-instructions" class="sidebar-dnd-instructions">
-	Press Space or Enter to pick up a draggable item. Use Arrow keys to move the item. Press Enter
-	to drop the item in a new position, or press Escape to cancel.
+	{ctx.labels.dnd.instructions}
 </div>
 
 <!-- Live region for dynamic announcements -->

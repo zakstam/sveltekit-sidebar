@@ -17,7 +17,11 @@ import type {
 	KeyboardDragState,
 	PointerDragState,
 	SidebarResponsiveSettings,
-	SidebarResponsiveMode
+	SidebarResponsiveMode,
+	SidebarDnDSettings,
+	SidebarKeyboardShortcuts,
+	SidebarLabels,
+	SidebarAnnouncements
 } from './types.js';
 import { defaultSchema } from './types.js';
 
@@ -37,8 +41,78 @@ const DEFAULT_RESPONSIVE_SETTINGS: Required<SidebarResponsiveSettings> = {
 	lockBodyScroll: true
 };
 
-const DEFAULT_SETTINGS: Required<Omit<SidebarSettings, 'responsive'>> & {
+const DEFAULT_KEYBOARD_SHORTCUTS: Required<SidebarKeyboardShortcuts> = {
+	pickUpDrop: [' ', 'Enter'],
+	moveUp: 'ArrowUp',
+	moveDown: 'ArrowDown',
+	moveToParent: 'ArrowLeft',
+	moveIntoGroup: 'ArrowRight',
+	cancel: 'Escape'
+};
+
+const DEFAULT_DND_SETTINGS: Required<Omit<SidebarDnDSettings, 'keyboard'>> & {
+	keyboard: Required<SidebarKeyboardShortcuts>;
+} = {
+	longPressDelay: 400,
+	hoverExpandDelay: 500,
+	autoScrollThreshold: 50,
+	autoScrollMaxSpeed: 15,
+	rectCacheInterval: 100,
+	keyboard: DEFAULT_KEYBOARD_SHORTCUTS
+};
+
+const DEFAULT_LABELS: Required<{
+	navigation: Required<NonNullable<SidebarLabels['navigation']>>;
+	trigger: Required<NonNullable<SidebarLabels['trigger']>>;
+	group: Required<NonNullable<SidebarLabels['group']>>;
+	link: Required<NonNullable<SidebarLabels['link']>>;
+	dnd: Required<NonNullable<SidebarLabels['dnd']>>;
+}> = {
+	navigation: {
+		main: 'Sidebar navigation',
+		mobileDrawer: 'Navigation menu'
+	},
+	trigger: {
+		expand: 'Expand sidebar',
+		collapse: 'Collapse sidebar',
+		openMenu: 'Open navigation menu',
+		closeMenu: 'Close navigation menu'
+	},
+	group: {
+		expand: 'Expand',
+		collapse: 'Collapse'
+	},
+	link: {
+		external: 'Opens in new tab'
+	},
+	dnd: {
+		draggableItem: 'Draggable item',
+		instructions:
+			'Press Space or Enter to pick up a draggable item. Use Arrow keys to move the item. Press Enter to drop the item in a new position, or press Escape to cancel.'
+	}
+};
+
+const DEFAULT_ANNOUNCEMENTS: Required<SidebarAnnouncements> = {
+	pickedUp: 'Picked up {label}. Use arrow keys to move, Enter to drop, Escape to cancel.',
+	moved: 'Moved {position} {target}. Position {index} of {count}.',
+	dropped: 'Dropped {label}. Reorder complete.',
+	cancelled: 'Cancelled. {label} returned to original position.',
+	atTop: 'At the top of the list',
+	atBottom: 'At the bottom of the list',
+	atTopLevel: 'Already at the top level',
+	noGroupAbove: 'No group above to move into',
+	notAGroup: 'Previous item is not a group',
+	movedOutOf: 'Moved out of {target}. Now at parent level.',
+	movedInto: 'Moved into {target}. Position {index}.',
+	touchDragStarted: 'Dragging {label}. Move finger to reposition.',
+	groupExpanded: 'Expanded group'
+};
+
+const DEFAULT_SETTINGS: Required<Omit<SidebarSettings, 'responsive' | 'dnd' | 'labels' | 'announcements'>> & {
 	responsive: Required<SidebarResponsiveSettings>;
+	dnd: Required<Omit<SidebarDnDSettings, 'keyboard'>> & { keyboard: Required<SidebarKeyboardShortcuts> };
+	labels: typeof DEFAULT_LABELS;
+	announcements: Required<SidebarAnnouncements>;
 } = {
 	widthExpanded: '280px',
 	widthCollapsed: '64px',
@@ -47,7 +121,10 @@ const DEFAULT_SETTINGS: Required<Omit<SidebarSettings, 'responsive'>> & {
 	persistExpandedGroups: true,
 	storageKey: 'sveltekit-sidebar',
 	defaultCollapsed: false,
-	responsive: DEFAULT_RESPONSIVE_SETTINGS
+	responsive: DEFAULT_RESPONSIVE_SETTINGS,
+	dnd: DEFAULT_DND_SETTINGS,
+	labels: DEFAULT_LABELS,
+	announcements: DEFAULT_ANNOUNCEMENTS
 };
 
 // ============================================================================
@@ -69,8 +146,11 @@ export class SidebarContext<T = unknown> {
 	// Configuration (initialized first)
 	readonly schema: SidebarSchema<T>;
 	data = $state<T[]>([]); // Raw sections data - reactive for DnD reordering
-	readonly settings: Required<Omit<SidebarSettings, 'responsive'>> & {
+	readonly settings: Required<Omit<SidebarSettings, 'responsive' | 'dnd' | 'labels' | 'announcements'>> & {
 		responsive: Required<SidebarResponsiveSettings>;
+		dnd: Required<Omit<SidebarDnDSettings, 'keyboard'>> & { keyboard: Required<SidebarKeyboardShortcuts> };
+		labels: typeof DEFAULT_LABELS;
+		announcements: Required<SidebarAnnouncements>;
 	};
 	readonly events: SidebarEvents;
 
@@ -121,10 +201,8 @@ export class SidebarContext<T = unknown> {
 
 	// Pointer/Touch DnD state
 	pointerDragState = $state<PointerDragState<T> | null>(null);
-	readonly longPressDelay = 400; // ms
 	#dropZoneRects: Array<{ id: string; rect: DOMRect; element: HTMLElement }> = [];
 	#lastRectCacheTime = 0;
-	readonly rectCacheInterval = 100; // Refresh rects every 100ms during drag
 
 	// Custom drag preview element (set by Sidebar component)
 	#dragPreviewElement: HTMLElement | null = null;
@@ -132,13 +210,10 @@ export class SidebarContext<T = unknown> {
 	// Auto-scroll state
 	#scrollContainer: HTMLElement | null = null;
 	#autoScrollAnimationId: number | null = null;
-	readonly autoScrollThreshold = 50; // px from edge
-	readonly autoScrollMaxSpeed = 15; // px per frame
 
 	// Hover-expand state
 	#hoverExpandTimerId: ReturnType<typeof setTimeout> | null = null;
 	#hoverExpandTargetId: string | null = null;
-	readonly hoverExpandDelay = 500; // ms
 
 	// FLIP animation state
 	#itemPositions = new Map<string, DOMRect>();
@@ -152,6 +227,59 @@ export class SidebarContext<T = unknown> {
 
 	get isCollapsed(): boolean {
 		return this.collapsed;
+	}
+
+	// DnD timing constants (from settings)
+	get longPressDelay(): number {
+		return this.settings.dnd.longPressDelay;
+	}
+
+	get hoverExpandDelay(): number {
+		return this.settings.dnd.hoverExpandDelay;
+	}
+
+	get autoScrollThreshold(): number {
+		return this.settings.dnd.autoScrollThreshold;
+	}
+
+	get autoScrollMaxSpeed(): number {
+		return this.settings.dnd.autoScrollMaxSpeed;
+	}
+
+	get rectCacheInterval(): number {
+		return this.settings.dnd.rectCacheInterval;
+	}
+
+	// Labels getter for i18n
+	get labels(): typeof DEFAULT_LABELS {
+		return this.settings.labels;
+	}
+
+	// Announcements getter
+	get announcements(): Required<SidebarAnnouncements> {
+		return this.settings.announcements;
+	}
+
+	/**
+	 * Format an announcement template with placeholder values
+	 */
+	formatAnnouncement(
+		template: string,
+		values: Record<string, string | number>
+	): string {
+		return template.replace(/\{(\w+)\}/g, (_, key) => {
+			return key in values ? String(values[key]) : `{${key}}`;
+		});
+	}
+
+	/**
+	 * Check if a key matches a shortcut (single key or array of keys)
+	 */
+	matchesShortcut(key: string, shortcut: string | string[]): boolean {
+		if (Array.isArray(shortcut)) {
+			return shortcut.includes(key);
+		}
+		return key === shortcut;
 	}
 
 	constructor(options: {
@@ -172,7 +300,20 @@ export class SidebarContext<T = unknown> {
 			this.settings = {
 				...DEFAULT_SETTINGS,
 				...config.settings,
-				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...config.settings?.responsive }
+				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...config.settings?.responsive },
+				dnd: {
+					...DEFAULT_DND_SETTINGS,
+					...config.settings?.dnd,
+					keyboard: { ...DEFAULT_KEYBOARD_SHORTCUTS, ...config.settings?.dnd?.keyboard }
+				},
+				labels: {
+					navigation: { ...DEFAULT_LABELS.navigation, ...config.settings?.labels?.navigation },
+					trigger: { ...DEFAULT_LABELS.trigger, ...config.settings?.labels?.trigger },
+					group: { ...DEFAULT_LABELS.group, ...config.settings?.labels?.group },
+					link: { ...DEFAULT_LABELS.link, ...config.settings?.labels?.link },
+					dnd: { ...DEFAULT_LABELS.dnd, ...config.settings?.labels?.dnd }
+				},
+				announcements: { ...DEFAULT_ANNOUNCEMENTS, ...config.settings?.announcements }
 			};
 		} else if (data) {
 			// New API: use data + schema
@@ -182,7 +323,20 @@ export class SidebarContext<T = unknown> {
 			this.settings = {
 				...DEFAULT_SETTINGS,
 				...settings,
-				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...settings?.responsive }
+				responsive: { ...DEFAULT_RESPONSIVE_SETTINGS, ...settings?.responsive },
+				dnd: {
+					...DEFAULT_DND_SETTINGS,
+					...settings?.dnd,
+					keyboard: { ...DEFAULT_KEYBOARD_SHORTCUTS, ...settings?.dnd?.keyboard }
+				},
+				labels: {
+					navigation: { ...DEFAULT_LABELS.navigation, ...settings?.labels?.navigation },
+					trigger: { ...DEFAULT_LABELS.trigger, ...settings?.labels?.trigger },
+					group: { ...DEFAULT_LABELS.group, ...settings?.labels?.group },
+					link: { ...DEFAULT_LABELS.link, ...settings?.labels?.link },
+					dnd: { ...DEFAULT_LABELS.dnd, ...settings?.labels?.dnd }
+				},
+				announcements: { ...DEFAULT_ANNOUNCEMENTS, ...settings?.announcements }
 			};
 		} else {
 			throw new Error('Sidebar requires either "config" or "data" prop');
@@ -358,6 +512,9 @@ export class SidebarContext<T = unknown> {
 		if (this.drawerOpen) {
 			return;
 		}
+		if (this.events.onBeforeOpenChange?.(true) === false) {
+			return;
+		}
 		this.drawerOpen = true;
 		this.events.onOpenChange?.(true);
 
@@ -371,6 +528,9 @@ export class SidebarContext<T = unknown> {
 	 */
 	closeDrawer(): void {
 		if (!this.drawerOpen) {
+			return;
+		}
+		if (this.events.onBeforeOpenChange?.(false) === false) {
 			return;
 		}
 		this.drawerOpen = false;
@@ -542,7 +702,7 @@ export class SidebarContext<T = unknown> {
 				draggable: this.dndEnabled && !isKeyboardDragging,
 				tabIndex: this.dndEnabled ? 0 : -1,
 				role: 'button',
-				'aria-roledescription': 'Draggable item',
+				'aria-roledescription': this.labels.dnd.draggableItem,
 				'aria-describedby': 'sidebar-dnd-instructions',
 				'aria-pressed': isKeyboardDragging ? true : undefined,
 				'aria-grabbed': this.draggedItem?.id === id || isKeyboardDragging ? true : undefined,
@@ -650,7 +810,11 @@ export class SidebarContext<T = unknown> {
 	 * Toggle sidebar collapsed state
 	 */
 	toggleCollapsed(): void {
-		this.collapsed = !this.collapsed;
+		const willCollapse = !this.collapsed;
+		if (this.events.onBeforeCollapsedChange?.(willCollapse) === false) {
+			return;
+		}
+		this.collapsed = willCollapse;
 		this.events.onCollapsedChange?.(this.collapsed);
 	}
 
@@ -658,6 +822,10 @@ export class SidebarContext<T = unknown> {
 	 * Set sidebar collapsed state
 	 */
 	setCollapsed(value: boolean): void {
+		if (value === this.collapsed) return;
+		if (this.events.onBeforeCollapsedChange?.(value) === false) {
+			return;
+		}
 		this.collapsed = value;
 		this.events.onCollapsedChange?.(this.collapsed);
 	}
@@ -667,14 +835,23 @@ export class SidebarContext<T = unknown> {
 	 */
 	toggleGroup(groupId: string): void {
 		const currentState = this.#expandedGroupsMap[groupId] ?? false;
-		this.#expandedGroupsMap[groupId] = !currentState;
-		this.events.onGroupToggle?.(groupId, !currentState);
+		const willExpand = !currentState;
+		if (this.events.onBeforeGroupToggle?.(groupId, willExpand) === false) {
+			return;
+		}
+		this.#expandedGroupsMap[groupId] = willExpand;
+		this.events.onGroupToggle?.(groupId, willExpand);
 	}
 
 	/**
 	 * Set a group's expanded state
 	 */
 	setGroupExpanded(groupId: string, expanded: boolean): void {
+		const currentState = this.#expandedGroupsMap[groupId] ?? false;
+		if (currentState === expanded) return;
+		if (this.events.onBeforeGroupToggle?.(groupId, expanded) === false) {
+			return;
+		}
 		this.#expandedGroupsMap[groupId] = expanded;
 		this.events.onGroupToggle?.(groupId, expanded);
 	}
@@ -971,12 +1148,8 @@ export class SidebarContext<T = unknown> {
 		// Calculate depth based on parent
 		const toDepth = this.calculateDepth(toParentId);
 
-		// Capture positions before reorder for FLIP animation (when livePreview is off)
-		if (!this.livePreview) {
-			this.captureItemPositions();
-		}
-
-		this.onReorder({
+		// Build reorder event
+		const reorderEvent: SidebarReorderEvent<T> = {
 			item: this.draggedItem.item,
 			fromIndex: this.draggedItem.index,
 			toIndex,
@@ -984,7 +1157,20 @@ export class SidebarContext<T = unknown> {
 			toParentId,
 			depth: toDepth,
 			position
-		});
+		};
+
+		// Check if reorder should be prevented
+		if (this.events.onBeforeReorder?.(reorderEvent as SidebarReorderEvent) === false) {
+			this.endDrag(true); // Animate back
+			return;
+		}
+
+		// Capture positions before reorder for FLIP animation (when livePreview is off)
+		if (!this.livePreview) {
+			this.captureItemPositions();
+		}
+
+		this.onReorder(reorderEvent);
 
 		// Animate items to new positions (when livePreview is off)
 		if (!this.livePreview) {
@@ -1245,11 +1431,12 @@ export class SidebarContext<T = unknown> {
 		if (!this.dndEnabled) return;
 
 		const id = this.getId(item);
+		const shortcuts = this.settings.dnd.keyboard;
 
 		// If keyboard drag is not active
 		if (!this.keyboardDragState) {
 			// Space or Enter to pick up
-			if (e.key === ' ' || e.key === 'Enter') {
+			if (this.matchesShortcut(e.key, shortcuts.pickUpDrop)) {
 				e.preventDefault();
 				this.pickUpItem(item, parentId, index, depth);
 			}
@@ -1260,28 +1447,20 @@ export class SidebarContext<T = unknown> {
 		if (this.keyboardDragState.id === id) {
 			e.preventDefault();
 
-			switch (e.key) {
-				case 'ArrowUp':
-					this.movePickedUpItem(-1);
-					break;
-				case 'ArrowDown':
-					this.movePickedUpItem(1);
-					break;
-				case 'ArrowLeft':
-					// Move to parent level (if nested)
-					this.movePickedUpItemToParent();
-					break;
-				case 'ArrowRight':
-					// Move into previous sibling group (if it's a group)
-					this.movePickedUpItemIntoGroup();
-					break;
-				case 'Enter':
-				case ' ':
-					this.dropPickedUpItem(depth);
-					break;
-				case 'Escape':
-					this.cancelKeyboardDrag();
-					break;
+			if (this.matchesShortcut(e.key, shortcuts.moveUp)) {
+				this.movePickedUpItem(-1);
+			} else if (this.matchesShortcut(e.key, shortcuts.moveDown)) {
+				this.movePickedUpItem(1);
+			} else if (this.matchesShortcut(e.key, shortcuts.moveToParent)) {
+				// Move to parent level (if nested)
+				this.movePickedUpItemToParent();
+			} else if (this.matchesShortcut(e.key, shortcuts.moveIntoGroup)) {
+				// Move into previous sibling group (if it's a group)
+				this.movePickedUpItemIntoGroup();
+			} else if (this.matchesShortcut(e.key, shortcuts.pickUpDrop)) {
+				this.dropPickedUpItem(depth);
+			} else if (this.matchesShortcut(e.key, shortcuts.cancel)) {
+				this.cancelKeyboardDrag();
 			}
 		}
 	}
@@ -1310,7 +1489,7 @@ export class SidebarContext<T = unknown> {
 		this.previewInsert = { parentId, index };
 
 		const label = this.getLabel(item);
-		this.announcement = `Picked up ${label}. Use arrow keys to move, Enter to drop, Escape to cancel.`;
+		this.announcement = this.formatAnnouncement(this.announcements.pickedUp, { label });
 	}
 
 	/**
@@ -1324,7 +1503,7 @@ export class SidebarContext<T = unknown> {
 
 		// Bounds check
 		if (newIndex < 0 || newIndex >= siblings.length) {
-			this.announcement = direction === -1 ? 'At the top of the list' : 'At the bottom of the list';
+			this.announcement = direction === -1 ? this.announcements.atTop : this.announcements.atBottom;
 			return;
 		}
 
@@ -1344,7 +1523,12 @@ export class SidebarContext<T = unknown> {
 		const targetItem = siblings[newIndex];
 		const targetLabel = this.getLabel(targetItem);
 		const position = direction === -1 ? 'before' : 'after';
-		this.announcement = `Moved ${position} ${targetLabel}. Position ${newIndex + 1} of ${siblings.length}.`;
+		this.announcement = this.formatAnnouncement(this.announcements.moved, {
+			position,
+			target: targetLabel,
+			index: newIndex + 1,
+			count: siblings.length
+		});
 	}
 
 	/**
@@ -1352,7 +1536,7 @@ export class SidebarContext<T = unknown> {
 	 */
 	movePickedUpItemToParent(): void {
 		if (!this.keyboardDragState || !this.keyboardDragState.currentParentId) {
-			this.announcement = 'Already at the top level';
+			this.announcement = this.announcements.atTopLevel;
 			return;
 		}
 
@@ -1380,7 +1564,7 @@ export class SidebarContext<T = unknown> {
 		});
 
 		const parentLabel = this.getLabel(parentInfo.item);
-		this.announcement = `Moved out of ${parentLabel}. Now at parent level.`;
+		this.announcement = this.formatAnnouncement(this.announcements.movedOutOf, { target: parentLabel });
 	}
 
 	/**
@@ -1393,13 +1577,13 @@ export class SidebarContext<T = unknown> {
 
 		// Look for the previous sibling that is a group
 		if (currentIndex <= 0) {
-			this.announcement = 'No group above to move into';
+			this.announcement = this.announcements.noGroupAbove;
 			return;
 		}
 
 		const prevSibling = siblings[currentIndex - 1];
 		if (this.getKind(prevSibling) !== 'group') {
-			this.announcement = 'Previous item is not a group';
+			this.announcement = this.announcements.notAGroup;
 			return;
 		}
 
@@ -1408,9 +1592,11 @@ export class SidebarContext<T = unknown> {
 		const groupChildren = this.getItems(prevSibling);
 		const newIndex = groupChildren.length; // At the end
 
-		// Expand the group if collapsed
+		// Expand the group if collapsed (bypass prevention for DnD operations)
 		if (!this.isGroupExpanded(groupId)) {
-			this.setGroupExpanded(groupId, true);
+			// Direct assignment to bypass onBeforeGroupToggle during DnD
+			this.#expandedGroupsMap[groupId] = true;
+			this.events.onGroupToggle?.(groupId, true);
 		}
 
 		// Capture positions before update
@@ -1428,7 +1614,10 @@ export class SidebarContext<T = unknown> {
 			});
 		});
 
-		this.announcement = `Moved into ${groupLabel}. Position ${groupChildren.length + 1}.`;
+		this.announcement = this.formatAnnouncement(this.announcements.movedInto, {
+			target: groupLabel,
+			index: groupChildren.length + 1
+		});
 	}
 
 	/**
@@ -1449,8 +1638,8 @@ export class SidebarContext<T = unknown> {
 
 		const label = this.getLabel(item);
 
-		// Items are already in preview position, so no FLIP animation needed
-		this.onReorder({
+		// Build reorder event
+		const reorderEvent: SidebarReorderEvent<T> = {
 			item,
 			fromIndex: originalIndex,
 			toIndex: currentIndex,
@@ -1458,9 +1647,18 @@ export class SidebarContext<T = unknown> {
 			toParentId: currentParentId,
 			depth: toDepth,
 			position: 'before' // Keyboard always uses explicit positioning
-		});
+		};
 
-		this.announcement = `Dropped ${label}. Reorder complete.`;
+		// Check if reorder should be prevented
+		if (this.events.onBeforeReorder?.(reorderEvent as SidebarReorderEvent) === false) {
+			this.cancelKeyboardDrag();
+			return;
+		}
+
+		// Items are already in preview position, so no FLIP animation needed
+		this.onReorder(reorderEvent);
+
+		this.announcement = this.formatAnnouncement(this.announcements.dropped, { label });
 
 		// Clean up all drag state
 		this.keyboardDragState = null;
@@ -1479,7 +1677,7 @@ export class SidebarContext<T = unknown> {
 		// Capture positions before clearing preview (items will snap back)
 		this.captureItemPositions();
 
-		this.announcement = `Cancelled. ${label} returned to original position.`;
+		this.announcement = this.formatAnnouncement(this.announcements.cancelled, { label });
 
 		// Clean up all drag state
 		this.keyboardDragState = null;
@@ -1642,7 +1840,8 @@ export class SidebarContext<T = unknown> {
 			navigator.vibrate(50);
 		}
 
-		this.announcement = `Dragging ${this.getLabel(this.pointerDragState.item)}. Move finger to reposition.`;
+		const label = this.getLabel(this.pointerDragState.item);
+		this.announcement = this.formatAnnouncement(this.announcements.touchDragStarted, { label });
 	}
 
 	/**
@@ -1869,8 +2068,10 @@ export class SidebarContext<T = unknown> {
 
 		this.#hoverExpandTimerId = setTimeout(() => {
 			if (this.#hoverExpandTargetId === groupId) {
-				this.setGroupExpanded(groupId, true);
-				this.announcement = `Expanded group`;
+				// Direct assignment to bypass onBeforeGroupToggle during DnD hover-expand
+				this.#expandedGroupsMap[groupId] = true;
+				this.events.onGroupToggle?.(groupId, true);
+				this.announcement = this.announcements.groupExpanded;
 			}
 			this.#hoverExpandTimerId = null;
 			this.#hoverExpandTargetId = null;

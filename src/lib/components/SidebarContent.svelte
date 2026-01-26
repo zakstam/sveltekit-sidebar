@@ -8,7 +8,7 @@
 	const ctx = getSidebarContext();
 </script>
 
-<nav class="sidebar-content {className}" aria-label="Sidebar navigation">
+<nav class="sidebar-content {className}" aria-label={ctx.labels.navigation.main}>
 	{#each ctx.data as section, index (ctx.getId(section))}
 		<SidebarSection {section} {index} />
 	{/each}

@@ -29,7 +29,12 @@ export type {
 	PointerDragState,
 	// Responsive types
 	SidebarResponsiveSettings,
-	SidebarResponsiveMode
+	SidebarResponsiveMode,
+	// Customization types
+	SidebarDnDSettings,
+	SidebarKeyboardShortcuts,
+	SidebarLabels,
+	SidebarAnnouncements
 } from './types.js';
 
 // Conflicting types (renamed to avoid collision with component names)

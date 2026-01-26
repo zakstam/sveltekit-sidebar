@@ -97,6 +97,118 @@ export interface SidebarResponsiveSettings {
 }
 
 /**
+ * Keyboard shortcuts for drag-and-drop operations
+ */
+export interface SidebarKeyboardShortcuts {
+	/** Keys to pick up or drop an item (default: [' ', 'Enter']) */
+	pickUpDrop?: string[];
+	/** Key to move item up (default: 'ArrowUp') */
+	moveUp?: string;
+	/** Key to move item down (default: 'ArrowDown') */
+	moveDown?: string;
+	/** Key to move item to parent level (default: 'ArrowLeft') */
+	moveToParent?: string;
+	/** Key to move item into a group (default: 'ArrowRight') */
+	moveIntoGroup?: string;
+	/** Key to cancel drag operation (default: 'Escape') */
+	cancel?: string;
+}
+
+/**
+ * Drag-and-drop timing and behavior settings
+ */
+export interface SidebarDnDSettings {
+	/** Delay before long-press initiates drag on touch devices in ms (default: 400) */
+	longPressDelay?: number;
+	/** Delay before hovering over collapsed group expands it during drag in ms (default: 500) */
+	hoverExpandDelay?: number;
+	/** Distance from edge that triggers auto-scroll in px (default: 50) */
+	autoScrollThreshold?: number;
+	/** Maximum auto-scroll speed in px per frame (default: 15) */
+	autoScrollMaxSpeed?: number;
+	/** Interval to refresh drop zone rectangles during drag in ms (default: 100) */
+	rectCacheInterval?: number;
+	/** Keyboard shortcuts for DnD operations */
+	keyboard?: SidebarKeyboardShortcuts;
+}
+
+/**
+ * ARIA labels for sidebar components (i18n support)
+ */
+export interface SidebarLabels {
+	/** Labels for navigation landmarks */
+	navigation?: {
+		/** Main sidebar navigation label (default: "Sidebar navigation") */
+		main?: string;
+		/** Mobile drawer dialog label (default: "Navigation menu") */
+		mobileDrawer?: string;
+	};
+	/** Labels for collapse/expand triggers */
+	trigger?: {
+		/** Expand sidebar button (default: "Expand sidebar") */
+		expand?: string;
+		/** Collapse sidebar button (default: "Collapse sidebar") */
+		collapse?: string;
+		/** Open mobile menu button (default: "Open navigation menu") */
+		openMenu?: string;
+		/** Close mobile menu button (default: "Close navigation menu") */
+		closeMenu?: string;
+	};
+	/** Labels for group expand/collapse */
+	group?: {
+		/** Expand group (default: "Expand") */
+		expand?: string;
+		/** Collapse group (default: "Collapse") */
+		collapse?: string;
+	};
+	/** Labels for link elements */
+	link?: {
+		/** External link indicator (default: "Opens in new tab") */
+		external?: string;
+	};
+	/** Labels for drag-and-drop */
+	dnd?: {
+		/** Draggable item role description (default: "Draggable item") */
+		draggableItem?: string;
+		/** Full DnD instructions for screen readers */
+		instructions?: string;
+	};
+}
+
+/**
+ * Screen reader announcement templates for drag-and-drop operations.
+ * Use placeholders: {label}, {position}, {target}, {count}
+ */
+export interface SidebarAnnouncements {
+	/** Item picked up (default: "Picked up {label}. Use arrow keys to move, Enter to drop, Escape to cancel.") */
+	pickedUp?: string;
+	/** Item moved (default: "Moved {position} {target}. Position {index} of {count}.") */
+	moved?: string;
+	/** Item dropped (default: "Dropped {label}. Reorder complete.") */
+	dropped?: string;
+	/** Drag cancelled (default: "Cancelled. {label} returned to original position.") */
+	cancelled?: string;
+	/** At top of list (default: "At the top of the list") */
+	atTop?: string;
+	/** At bottom of list (default: "At the bottom of the list") */
+	atBottom?: string;
+	/** Already at top level (default: "Already at the top level") */
+	atTopLevel?: string;
+	/** No group above to move into (default: "No group above to move into") */
+	noGroupAbove?: string;
+	/** Previous item is not a group (default: "Previous item is not a group") */
+	notAGroup?: string;
+	/** Moved out of group (default: "Moved out of {target}. Now at parent level.") */
+	movedOutOf?: string;
+	/** Moved into group (default: "Moved into {target}. Position {index}.") */
+	movedInto?: string;
+	/** Touch drag started (default: "Dragging {label}. Move finger to reposition.") */
+	touchDragStarted?: string;
+	/** Group expanded during drag (default: "Expanded group") */
+	groupExpanded?: string;
+}
+
+/**
  * Sidebar settings for customization
  */
 export interface SidebarSettings {
@@ -116,6 +228,12 @@ export interface SidebarSettings {
 	defaultCollapsed?: boolean;
 	/** Responsive settings */
 	responsive?: SidebarResponsiveSettings;
+	/** Drag-and-drop settings */
+	dnd?: SidebarDnDSettings;
+	/** ARIA labels for i18n support */
+	labels?: SidebarLabels;
+	/** Screen reader announcements for DnD operations */
+	announcements?: SidebarAnnouncements;
 }
 
 /**
@@ -278,6 +396,19 @@ export interface SidebarEvents {
 	onOpenChange?: (open: boolean) => void;
 	/** Called when the responsive mode changes */
 	onModeChange?: (mode: SidebarResponsiveMode) => void;
+
+	// Preventable events (return false to prevent the action)
+
+	/** Called before navigation. Return false to prevent navigation. */
+	onBeforeNavigate?: (page: SidebarPage) => boolean | void;
+	/** Called before reorder completes. Return false to prevent the reorder. */
+	onBeforeReorder?: (event: SidebarReorderEvent) => boolean | void;
+	/** Called before group toggle. Return false to prevent the toggle. */
+	onBeforeGroupToggle?: (groupId: string, willExpand: boolean) => boolean | void;
+	/** Called before sidebar collapse state changes. Return false to prevent the change. */
+	onBeforeCollapsedChange?: (willCollapse: boolean) => boolean | void;
+	/** Called before drawer opens/closes (mobile mode). Return false to prevent the change. */
+	onBeforeOpenChange?: (willOpen: boolean) => boolean | void;
 }
 
 // ============================================================================

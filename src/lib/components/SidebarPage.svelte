@@ -21,10 +21,16 @@
 	const showLabel = $derived(!isCollapsed);
 	const showAvatar = $derived(isCollapsed && !renderCtx.icon);
 
-	function handleClick() {
+	function handleClick(e: MouseEvent) {
 		// Legacy compatibility: call handleNavigate if using built-in types
 		if (ctx.config) {
-			ctx.handleNavigate(item as unknown as SidebarPageData);
+			const page = item as unknown as SidebarPageData;
+			// Check if navigation should be prevented
+			if (ctx.events.onBeforeNavigate?.(page) === false) {
+				e.preventDefault();
+				return;
+			}
+			ctx.handleNavigate(page);
 		}
 	}
 </script>
@@ -73,7 +79,7 @@
 			{/if}
 
 			{#if renderCtx.isExternal && showLabel}
-				<span class="sidebar-page__external" aria-label="Opens in new tab">↗</span>
+				<span class="sidebar-page__external" aria-label={ctx.labels.link.external}>↗</span>
 			{/if}
 		</a>
 	</li>

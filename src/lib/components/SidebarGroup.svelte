@@ -102,7 +102,7 @@
 						type="button"
 						class="sidebar-group__chevron-btn"
 						class:sidebar-group__chevron--expanded={isExpanded}
-						aria-label={isExpanded ? 'Collapse' : 'Expand'}
+						aria-label={isExpanded ? ctx.labels.group.collapse : ctx.labels.group.expand}
 						onclick={(e) => {
 							e.preventDefault();
 							e.stopPropagation();

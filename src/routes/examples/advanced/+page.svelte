@@ -5,7 +5,8 @@
 		type SidebarSchema,
 		type SidebarRenderContext,
 		type SidebarReorderEvent,
-		type DropPosition
+		type DropPosition,
+		type SidebarSettings
 	} from '$lib/index.js';
 	import '$lib/styles/index.css';
 
@@ -146,6 +147,9 @@
 	let editMode = $state(false);
 	let animated = $state(true);
 	let useCustomDropIndicator = $state(false);
+	let useLongerTiming = $state(false);
+	let useCustomLabels = $state(false);
+	let preventReorderHome = $state(false);
 
 	// Handle reorder using built-in DnD
 	function handleReorder(event: SidebarReorderEvent<NavItem>) {
@@ -155,6 +159,49 @@
 			setItems: (item, children) => ({ ...item, children })
 		});
 	}
+
+	// Dynamic settings based on toggles
+	const settings: SidebarSettings = $derived({
+		persistCollapsed: false,
+		dnd: useLongerTiming
+			? {
+					longPressDelay: 800, // Longer touch delay
+					hoverExpandDelay: 1000, // Slower auto-expand
+					autoScrollThreshold: 80, // Larger scroll zone
+					autoScrollMaxSpeed: 8 // Slower scrolling
+				}
+			: undefined,
+		labels: useCustomLabels
+			? {
+					navigation: {
+						main: 'Custom Navigation',
+						mobileDrawer: 'Custom Menu'
+					},
+					trigger: {
+						expand: 'Open Sidebar',
+						collapse: 'Close Sidebar',
+						openMenu: 'Show Menu',
+						closeMenu: 'Hide Menu'
+					},
+					group: {
+						expand: 'Open',
+						collapse: 'Close'
+					},
+					dnd: {
+						draggableItem: 'Movable item',
+						instructions:
+							'Press Space to select. Use arrows to move. Press Enter to confirm, Escape to cancel.'
+					}
+				}
+			: undefined,
+		announcements: useCustomLabels
+			? {
+					pickedUp: 'Selected {label}. Arrow keys to move.',
+					dropped: '{label} placed successfully.',
+					cancelled: 'Cancelled. {label} back in place.'
+				}
+			: undefined
+	});
 </script>
 
 <svelte:head>
@@ -174,11 +221,23 @@
 		<Sidebar
 			data={navigation}
 			{schema}
-			settings={{ persistCollapsed: false }}
+			{settings}
 			draggable={editMode}
 			onReorder={handleReorder}
 			{animated}
 			dropIndicator={useCustomDropIndicator ? customDropIndicator : undefined}
+			events={{
+				onBeforeReorder: preventReorderHome
+					? (event) => {
+							// Prevent moving the dashboard item
+							const item = event.item as NavItem;
+							if (item.id === 'dashboard') {
+								alert('Dashboard cannot be moved when protection is enabled!');
+								return false;
+							}
+						}
+					: undefined
+			}}
 		>
 			{#snippet dragPreview(item, ctx)}
 				<div class="drag-preview">
@@ -207,7 +266,19 @@
 							<input type="checkbox" bind:checked={useCustomDropIndicator} />
 							<span>Custom Indicator</span>
 						</label>
+						<label class="edit-toggle">
+							<input type="checkbox" bind:checked={useLongerTiming} />
+							<span>Longer Timing</span>
+						</label>
+						<label class="edit-toggle">
+							<input type="checkbox" bind:checked={preventReorderHome} />
+							<span>Protect Dashboard</span>
+						</label>
 					{/if}
+					<label class="edit-toggle">
+						<input type="checkbox" bind:checked={useCustomLabels} />
+						<span>Custom Labels</span>
+					</label>
 				</div>
 			{/snippet}
 

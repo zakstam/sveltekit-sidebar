@@ -22,7 +22,7 @@
 <button
 	type="button"
 	class="sidebar-mobile-trigger {className}"
-	aria-label={isOpen ? 'Close navigation menu' : 'Open navigation menu'}
+	aria-label={isOpen ? ctx.labels.trigger.closeMenu : ctx.labels.trigger.openMenu}
 	aria-expanded={isOpen}
 	aria-controls="sidebar-drawer"
 	onclick={handleClick}
