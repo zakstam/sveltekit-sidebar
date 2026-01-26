@@ -1,4 +1,4 @@
-import { getContext, setContext, untrack } from 'svelte';
+import { getContext, setContext, untrack, flushSync } from 'svelte';
 import type { Snippet } from 'svelte';
 import type {
 	SidebarConfig,
@@ -58,6 +58,7 @@ export interface SidebarSnippets<T = unknown> {
 	page?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
 	group?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
 	section?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
+	dropIndicator?: Snippet<[position: DropPosition, draggedLabel: string]>;
 }
 
 // ============================================================================
@@ -99,6 +100,8 @@ export class SidebarContext<T = unknown> {
 
 	// DnD state
 	dndEnabled = $state(false);
+	livePreview = $state(true);
+	animated = $state(true);
 	draggedItem = $state<{ id: string; item: T; parentId: string | null; index: number } | null>(
 		null
 	);
@@ -209,8 +212,18 @@ export class SidebarContext<T = unknown> {
 			});
 		});
 
-		// Set up responsive media queries (client-side only)
-		this.setupResponsiveMediaQueries();
+		// Set up responsive media queries (client-side only, runs after hydration)
+		$effect(() => {
+			// Use untrack to prevent this effect from re-running when state changes
+			untrack(() => {
+				this.setupResponsiveMediaQueries();
+			});
+
+			// Cleanup on destroy
+			return () => {
+				this.cleanupResponsiveMediaQueries();
+			};
+		});
 	}
 
 	// ========================================================================
@@ -223,6 +236,8 @@ export class SidebarContext<T = unknown> {
 	private setupResponsiveMediaQueries(): void {
 		if (typeof window === 'undefined') return;
 		if (!this.settings.responsive.enabled) return;
+		// Prevent double initialization
+		if (this.#mobileMediaQuery) return;
 
 		const { mobileBreakpoint, tabletBreakpoint } = this.settings.responsive;
 
@@ -276,9 +291,9 @@ export class SidebarContext<T = unknown> {
 	}
 
 	/**
-	 * Clean up media query listeners
+	 * Clean up responsive media query listeners
 	 */
-	destroy(): void {
+	private cleanupResponsiveMediaQueries(): void {
 		if (typeof window === 'undefined') return;
 
 		if (this.#mobileMediaQuery && this.#mobileQueryHandler) {
@@ -290,8 +305,20 @@ export class SidebarContext<T = unknown> {
 		if (this.settings.responsive.closeOnEscape) {
 			document.removeEventListener('keydown', this.#boundEscapeHandler);
 		}
+		// Reset references so setup can run again if needed
+		this.#mobileMediaQuery = null;
+		this.#tabletMediaQuery = null;
+		this.#mobileQueryHandler = null;
+		this.#tabletQueryHandler = null;
 		// Ensure body scroll is unlocked
 		this.unlockBodyScroll();
+	}
+
+	/**
+	 * Clean up all resources (called on component destroy)
+	 */
+	destroy(): void {
+		this.cleanupResponsiveMediaQueries();
 	}
 
 	/**
@@ -328,7 +355,9 @@ export class SidebarContext<T = unknown> {
 	 * Open the mobile drawer
 	 */
 	openDrawer(): void {
-		if (this.drawerOpen) return;
+		if (this.drawerOpen) {
+			return;
+		}
 		this.drawerOpen = true;
 		this.events.onOpenChange?.(true);
 
@@ -341,7 +370,9 @@ export class SidebarContext<T = unknown> {
 	 * Close the mobile drawer
 	 */
 	closeDrawer(): void {
-		if (!this.drawerOpen) return;
+		if (!this.drawerOpen) {
+			return;
+		}
 		this.drawerOpen = false;
 		this.events.onOpenChange?.(false);
 
@@ -492,12 +523,21 @@ export class SidebarContext<T = unknown> {
 		// Create DnD state for this item
 		const isKeyboardDragging = this.keyboardDragState?.id === id;
 		const isPointerDragging = this.pointerDragState?.id === id && this.pointerDragState.isDragging;
+		const isDropTarget = this.dropTargetId === id;
+		// When a custom dropIndicator is provided, it handles preview visualization,
+		// so items should not show faded preview styling (isPreview = false)
+		const hasCustomDropIndicator = !!this.snippets?.dropIndicator;
+		const isPreview = hasCustomDropIndicator ? false : this.isPreviewItem(id);
 
 		const dnd: SidebarDnDState = {
 			enabled: this.dndEnabled,
 			isDragging: this.draggedItem?.id === id,
 			isKeyboardDragging,
 			isPointerDragging,
+			isDropTarget,
+			dropPosition: isDropTarget ? this.dropPosition : null,
+			draggedLabel: this.draggedItem ? this.getLabel(this.draggedItem.item) : null,
+			isPreview,
 			handleProps: {
 				draggable: this.dndEnabled && !isKeyboardDragging,
 				tabIndex: this.dndEnabled ? 0 : -1,
@@ -509,8 +549,11 @@ export class SidebarContext<T = unknown> {
 				style: this.dndEnabled ? 'touch-action: none;' : undefined,
 				onmousedown: () => {
 					// Pre-set draggedItem on mousedown so the preview can render before dragstart
+					// Use flushSync to force synchronous DOM update before dragstart fires
 					if (this.dndEnabled && !this.draggedItem) {
-						this.draggedItem = { id, item, parentId, index };
+						flushSync(() => {
+							this.draggedItem = { id, item, parentId, index };
+						});
 					}
 				},
 				ondragstart: (e: DragEvent) => {
@@ -519,8 +562,13 @@ export class SidebarContext<T = unknown> {
 					if (!this.draggedItem || this.draggedItem.id !== id) {
 						this.startDrag(item, parentId, index);
 					}
-					// Use custom drag preview if available (rendered from draggedItem state)
-					const preview = this.#dragPreviewElement;
+					// Use custom drag preview if available
+					// Query DOM directly since $effect may not have synced yet
+					const preview =
+						this.#dragPreviewElement ??
+						(this.#scrollContainer?.closest('.sidebar')?.parentElement?.querySelector(
+							'.sidebar-drag-preview'
+						) as HTMLElement | null);
 					if (preview && e.dataTransfer) {
 						// Use the center of the preview as the drag point
 						const rect = preview.getBoundingClientRect();
@@ -707,8 +755,9 @@ export class SidebarContext<T = unknown> {
 	 * @param animate - Whether to animate items back if preview was active
 	 */
 	endDrag(animate: boolean = false): void {
-		// Capture positions if we need to animate back
-		if (animate && this.previewInsert) {
+		// Capture positions if we need to animate back (respects animated flag)
+		const shouldAnimate = animate && this.animated && this.previewInsert;
+		if (shouldAnimate) {
 			this.captureItemPositions();
 		}
 
@@ -720,7 +769,7 @@ export class SidebarContext<T = unknown> {
 		this.stopAutoScroll();
 
 		// Animate items back to original positions
-		if (animate) {
+		if (shouldAnimate) {
 			requestAnimationFrame(() => this.animateItemPositions());
 		}
 	}
@@ -897,17 +946,35 @@ export class SidebarContext<T = unknown> {
 			return;
 		}
 
-		// Use previewInsert as source of truth - it's exactly where the item appears
-		if (!this.previewInsert) {
+		let toParentId: string | null;
+		let toIndex: number;
+		const position = this.dropPosition ?? 'inside';
+
+		// Use previewInsert if available (livePreview mode)
+		if (this.previewInsert) {
+			toParentId = this.previewInsert.parentId;
+			toIndex = this.previewInsert.index;
+		} else if (this.dropTargetId && this.dropPosition) {
+			// Calculate position from dropTarget (non-livePreview mode)
+			const calculated = this.calculateInsertPosition(this.dropTargetId, this.dropPosition);
+			if (!calculated) {
+				this.endDrag();
+				return;
+			}
+			toParentId = calculated.parentId;
+			toIndex = calculated.index;
+		} else {
 			this.endDrag();
 			return;
 		}
 
-		const { parentId: toParentId, index: toIndex } = this.previewInsert;
-		const position = this.dropPosition ?? 'inside';
-
 		// Calculate depth based on parent
 		const toDepth = this.calculateDepth(toParentId);
+
+		// Capture positions before reorder for FLIP animation (when livePreview is off)
+		if (!this.livePreview) {
+			this.captureItemPositions();
+		}
 
 		this.onReorder({
 			item: this.draggedItem.item,
@@ -919,8 +986,68 @@ export class SidebarContext<T = unknown> {
 			position
 		});
 
-		// Items are already in preview position, so no FLIP animation needed on drop
+		// Animate items to new positions (when livePreview is off)
+		if (!this.livePreview) {
+			// Use requestAnimationFrame to ensure DOM has updated
+			requestAnimationFrame(() => {
+				this.animateItemPositions();
+			});
+		}
+
 		this.endDrag();
+	}
+
+	/**
+	 * Calculate the insert position (parentId and index) based on target and position
+	 */
+	private calculateInsertPosition(
+		targetId: string,
+		position: DropPosition
+	): { parentId: string | null; index: number } | null {
+		if (!this.draggedItem) return null;
+
+		const targetInfo = this.findItemById(targetId);
+		if (!targetInfo) return null;
+
+		const { item: targetItem, parentId: targetParentId, index: targetIndex } = targetInfo;
+		const targetKind = this.getKind(targetItem);
+		const draggedKind = this.getKind(this.draggedItem.item);
+
+		let toParentId: string | null;
+		let toIndex: number;
+
+		if (position === 'inside' && targetKind === 'group') {
+			// Dropping inside a group
+			toParentId = targetId;
+			toIndex = 0;
+		} else if (position === 'inside' && targetKind === 'section') {
+			// Dropping inside a section
+			toParentId = targetId;
+			toIndex = 0;
+		} else if (position === 'before') {
+			// Dropping before target
+			toParentId = targetParentId;
+			toIndex = targetIndex;
+		} else {
+			// Dropping after target (position === 'after')
+			toParentId = targetParentId;
+			toIndex = targetIndex + 1;
+		}
+
+		// Sections can only be at root level
+		if (draggedKind === 'section' && toParentId !== null) {
+			return null;
+		}
+
+		// Adjust index if moving within same parent and dragged item is before target
+		if (
+			this.draggedItem.parentId === toParentId &&
+			this.draggedItem.index < toIndex
+		) {
+			toIndex--;
+		}
+
+		return { parentId: toParentId, index: toIndex };
 	}
 
 	/**
@@ -962,6 +1089,28 @@ export class SidebarContext<T = unknown> {
 	// ========================================================================
 
 	/**
+	 * Check if an item is the preview placeholder (the dragged item shown at its target position).
+	 * This is true when:
+	 * 1. Live preview is active
+	 * 2. The item being checked is the dragged item
+	 * 3. The dragged item is being shown at a different position than its original
+	 */
+	isPreviewItem(id: string): boolean {
+		if (!this.livePreview || !this.draggedItem || !this.previewInsert) {
+			return false;
+		}
+		// The item is a preview if it's the dragged item AND it's at a different position
+		if (this.draggedItem.id !== id) {
+			return false;
+		}
+		// Check if position has actually changed
+		const positionChanged =
+			this.draggedItem.parentId !== this.previewInsert.parentId ||
+			this.draggedItem.index !== this.previewInsert.index;
+		return positionChanged;
+	}
+
+	/**
 	 * Get items with live preview reordering applied.
 	 * During drag, shows items as they would appear after drop.
 	 */
@@ -998,6 +1147,12 @@ export class SidebarContext<T = unknown> {
 	 * Update the preview insertion point based on current drop target and position
 	 */
 	private updatePreviewInsert(): void {
+		// Skip live preview if disabled (user is using custom drop indicators)
+		if (!this.livePreview) {
+			this.previewInsert = null;
+			return;
+		}
+
 		if (!this.draggedItem || !this.dropTargetId || !this.dropPosition) {
 			this.previewInsert = null;
 			return;
@@ -1050,28 +1205,24 @@ export class SidebarContext<T = unknown> {
 		}
 
 		// Only update if changed to avoid unnecessary re-renders
+		// Also skip updates while animation is in progress to prevent feedback loop
 		if (
-			!this.previewInsert ||
-			this.previewInsert.parentId !== toParentId ||
-			this.previewInsert.index !== toIndex
+			!this.#isAnimating &&
+			(!this.previewInsert ||
+				this.previewInsert.parentId !== toParentId ||
+				this.previewInsert.index !== toIndex)
 		) {
-			// Skip FLIP animations during pointer/touch drag to prevent flashing
-			// (continuous finger movement causes too many rapid updates)
-			const shouldAnimate = !this.pointerDragState?.isDragging;
-
-			if (shouldAnimate) {
-				// Capture current positions BEFORE updating preview
+			// Capture positions before the preview changes (for FLIP animation)
+			if (this.animated) {
 				this.captureItemPositions();
 			}
 
 			this.previewInsert = { parentId: toParentId, index: toIndex };
 
-			if (shouldAnimate) {
-				// Animate AFTER DOM updates (next frame)
+			// Animate items to new positions after DOM updates
+			if (this.animated) {
 				requestAnimationFrame(() => {
-					requestAnimationFrame(() => {
-						this.animateItemPositions();
-					});
+					this.animateItemPositions();
 				});
 			}
 		}
@@ -1499,7 +1650,9 @@ export class SidebarContext<T = unknown> {
 	 */
 	private cacheDropZoneRects(): void {
 		this.#dropZoneRects = [];
-		const dropZones = document.querySelectorAll('[data-sidebar-item-id]');
+		// Scope to this sidebar's scroll container to avoid affecting other sidebars
+		const container = this.#scrollContainer ?? document;
+		const dropZones = container.querySelectorAll('[data-sidebar-item-id]');
 		dropZones.forEach((element) => {
 			const id = element.getAttribute('data-sidebar-item-id');
 			if (id && id !== this.pointerDragState?.id) {
@@ -1745,7 +1898,9 @@ export class SidebarContext<T = unknown> {
 	captureItemPositions(): void {
 		this.#itemPositions.clear();
 
-		const items = document.querySelectorAll('[data-sidebar-item-id]');
+		// Scope to this sidebar's scroll container to avoid affecting other sidebars
+		const container = this.#scrollContainer ?? document;
+		const items = container.querySelectorAll('[data-sidebar-item-id]');
 		items.forEach((element) => {
 			const id = element.getAttribute('data-sidebar-item-id');
 			if (id) {
@@ -1758,10 +1913,12 @@ export class SidebarContext<T = unknown> {
 	 * Animate items from old positions to new positions (FLIP)
 	 */
 	animateItemPositions(): void {
-		if (this.#isAnimating || this.#itemPositions.size === 0) return;
+		if (!this.animated || this.#isAnimating || this.#itemPositions.size === 0) return;
 		this.#isAnimating = true;
 
-		const items = document.querySelectorAll('[data-sidebar-item-id]');
+		// Scope to this sidebar's scroll container to avoid affecting other sidebars
+		const container = this.#scrollContainer ?? document;
+		const items = container.querySelectorAll('[data-sidebar-item-id]');
 
 		items.forEach((element) => {
 			const id = element.getAttribute('data-sidebar-item-id');

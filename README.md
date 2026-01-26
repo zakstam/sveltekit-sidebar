@@ -9,6 +9,7 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 - **Schema System** - Use your own data types without transformation
 - **Render Snippets** - Full control over item rendering
 - **Drag and Drop** - Production-ready reordering with live preview, keyboard, and touch support
+- **Responsive** - Built-in mobile drawer, tablet collapsed, and desktop modes
 - **Type-safe** - Full TypeScript support with generics
 - **Infinitely nestable** - Groups can contain other groups, to any depth
 - **Collapsible** - Sidebar and groups can be expanded/collapsed
@@ -168,6 +169,7 @@ interface SidebarDnDState {
   isDragging: boolean;             // This item is being dragged
   isKeyboardDragging: boolean;     // Item picked up via keyboard
   isPointerDragging: boolean;      // Pointer/touch drag active
+  isPreview: boolean;              // This is the preview at the drop target position
   handleProps: {                   // Spread on drag handle element
     draggable: boolean;
     tabIndex: number;
@@ -247,12 +249,27 @@ interface SidebarSettings {
   persistExpandedGroups?: boolean; // Default: true
   storageKey?: string;           // Default: 'sveltekit-sidebar'
   defaultCollapsed?: boolean;    // Default: false
+  responsive?: SidebarResponsiveSettings;  // Responsive behavior
 }
+
+interface SidebarResponsiveSettings {
+  enabled?: boolean;             // Default: true
+  mobileBreakpoint?: number;     // Default: 768 (px)
+  tabletBreakpoint?: number;     // Default: 1024 (px)
+  defaultMode?: SidebarResponsiveMode;  // Default: 'desktop' (for SSR)
+  closeOnNavigation?: boolean;   // Default: true
+  closeOnEscape?: boolean;       // Default: true
+  lockBodyScroll?: boolean;      // Default: true
+}
+
+type SidebarResponsiveMode = 'mobile' | 'tablet' | 'desktop';
 
 interface SidebarEvents {
   onCollapsedChange?: (collapsed: boolean) => void;
   onGroupToggle?: (groupId: string, expanded: boolean) => void;
   onNavigate?: (page: SidebarPage) => void;
+  onOpenChange?: (open: boolean) => void;           // Mobile drawer open/close
+  onModeChange?: (mode: SidebarResponsiveMode) => void;  // Responsive mode change
 }
 
 type SidebarIcon = Component<{ class?: string }> | string | Snippet<[{ class?: string }]>;
@@ -278,6 +295,13 @@ interface SidebarProps<T = SidebarItem | SidebarSection> {
   // Drag and drop
   draggable?: boolean;             // Enable drag-and-drop reordering
   onReorder?: (event: SidebarReorderEvent<T>) => void;
+  animated?: boolean;              // Enable FLIP animations (default: true)
+  livePreview?: boolean;           // Items reorder during drag (default: true)
+  dragPreview?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;  // Custom drag image
+  dropIndicator?: Snippet<[position: DropPosition, draggedLabel: string]>;  // Custom drop indicator
+
+  // Responsive
+  mobileTrigger?: Snippet<[open: boolean, toggle: () => void]>;  // Custom mobile menu button
 
   // Common
   events?: SidebarEvents;
@@ -499,6 +523,8 @@ Access sidebar state from any child component:
 <p>Collapsed: {ctx.isCollapsed}</p>
 <p>Width: {ctx.width}</p>
 <p>Active href: {ctx.activeHref}</p>
+<p>Responsive mode: {ctx.responsiveMode}</p>
+<p>Drawer open: {ctx.drawerOpen}</p>
 
 <!-- Methods -->
 <button onclick={() => ctx.toggleCollapsed()}>Toggle Sidebar</button>
@@ -506,6 +532,7 @@ Access sidebar state from any child component:
 <button onclick={() => ctx.toggleGroup('docs')}>Toggle Docs Group</button>
 <button onclick={() => ctx.setGroupExpanded('docs', true)}>Expand Docs</button>
 <button onclick={() => ctx.expandPathTo('deep-item')}>Expand Path to Item</button>
+<button onclick={() => ctx.toggleDrawer()}>Toggle Mobile Drawer</button>
 ```
 
 ### SidebarContext Methods
@@ -521,6 +548,10 @@ class SidebarContext<T = unknown> {
   readonly schema: SidebarSchema<T>;
   readonly settings: Required<SidebarSettings>;
 
+  // Responsive state (reactive)
+  readonly responsiveMode: SidebarResponsiveMode;  // 'mobile' | 'tablet' | 'desktop'
+  readonly drawerOpen: boolean;                     // Mobile drawer state
+
   // Collapse/Expand
   toggleCollapsed(): void;
   setCollapsed(value: boolean): void;
@@ -531,6 +562,11 @@ class SidebarContext<T = unknown> {
   isGroupExpanded(groupId: string): boolean;
   getExpandedGroupIds(): string[];
   expandPathTo(itemId: string): void;
+
+  // Responsive / Mobile drawer
+  openDrawer(): void;
+  closeDrawer(): void;
+  toggleDrawer(): void;
 
   // Schema accessors
   getKind(item: T): 'page' | 'group' | 'section';
@@ -566,6 +602,12 @@ class SidebarContext<T = unknown> {
     },
     onGroupToggle: (groupId, expanded) => {
       console.log('Group', groupId, 'expanded:', expanded);
+    },
+    onOpenChange: (open) => {
+      console.log('Mobile drawer open:', open);
+    },
+    onModeChange: (mode) => {
+      console.log('Responsive mode:', mode);  // 'mobile' | 'tablet' | 'desktop'
     }
   }}
 />
@@ -770,13 +812,14 @@ Built-in validation prevents invalid drops:
 The built-in DnD system includes:
 
 - **Live preview** - Items physically reorder as you drag for instant visual feedback
+- **Custom drop indicator** - Replace the default faded preview with your own indicator
+- **Custom drag preview** - Render any component as the drag preview image
+- **FLIP animations** - Smooth transitions when items change position (can be disabled)
 - **Keyboard support** - Tab to drag handle, Space/Enter to pick up, Arrow keys to move, Enter to drop, Escape to cancel
 - **Touch support** - Long-press (~400ms) to initiate drag on mobile/tablet devices
 - **Auto-scroll** - Sidebar scrolls automatically when dragging near edges
 - **Hover-expand** - Collapsed groups auto-expand after hovering during drag
-- **FLIP animations** - Smooth transitions when items change position
 - **Accessible** - Full ARIA support with screen reader announcements
-- **Custom drag preview** - Render any component as the drag preview image
 
 ### Custom Drag Preview
 
@@ -810,6 +853,58 @@ The `dragPreview` snippet receives:
 - `item: T` - The item being dragged (your original data)
 - `ctx: SidebarRenderContext<T>` - The render context with `label`, `meta`, `icon`, etc.
 
+### Custom Drop Indicator
+
+By default, a faded preview of the dragged item appears at the target position. You can replace this with a custom drop indicator using the `dropIndicator` snippet:
+
+```svelte
+<Sidebar
+  data={navigation}
+  {schema}
+  draggable={true}
+  onReorder={handleReorder}
+>
+  {#snippet dropIndicator(position, draggedLabel)}
+    <div class="my-drop-indicator">
+      <span class="icon">↳</span>
+      <span>Drop "{draggedLabel}" {position}</span>
+    </div>
+  {/snippet}
+</Sidebar>
+
+<style>
+  .my-drop-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: linear-gradient(135deg, hsl(220 90% 96%), hsl(260 90% 96%));
+    border: 2px dashed hsl(240 70% 60%);
+    border-radius: 6px;
+    color: hsl(240 70% 40%);
+    font-size: 13px;
+  }
+</style>
+```
+
+The `dropIndicator` snippet receives:
+- `position: DropPosition` - Where the item will be dropped: `'before'`, `'inside'`, or `'after'`
+- `draggedLabel: string` - The label of the item being dragged
+
+When a custom `dropIndicator` is provided, the default faded preview is disabled.
+
+### Animation Control
+
+Control the FLIP animations during drag with the `animated` prop:
+
+```svelte
+<!-- Smooth animations (default) -->
+<Sidebar draggable={true} animated={true} ... />
+
+<!-- Instant position changes -->
+<Sidebar draggable={true} animated={false} ... />
+```
+
 You can also customize the default preview styles with CSS variables:
 
 ```css
@@ -821,6 +916,123 @@ You can also customize the default preview styles with CSS variables:
   --sidebar-drag-preview-max-width: 280px;
 }
 ```
+
+---
+
+## Responsive Design
+
+The sidebar includes built-in responsive behavior with three modes:
+
+| Mode | Screen Width | Behavior |
+|------|--------------|----------|
+| **Mobile** | < 768px | Drawer slides from left, hidden by default |
+| **Tablet** | 768px - 1023px | Collapsed sidebar (64px, icons only) |
+| **Desktop** | ≥ 1024px | Full expanded sidebar (280px) |
+
+### Basic Usage
+
+Responsive behavior is enabled by default:
+
+```svelte
+<Sidebar config={sidebarConfig} />
+```
+
+### Configuration
+
+Customize responsive behavior via settings:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  settings={{
+    responsive: {
+      enabled: true,              // Enable/disable responsive (default: true)
+      mobileBreakpoint: 768,      // Mobile breakpoint in px
+      tabletBreakpoint: 1024,     // Tablet breakpoint in px
+      defaultMode: 'desktop',     // SSR default (prevents hydration mismatch)
+      closeOnNavigation: true,    // Close drawer when navigating
+      closeOnEscape: true,        // Close drawer on Escape key
+      lockBodyScroll: true        // Prevent body scroll when drawer open
+    }
+  }}
+  events={{
+    onOpenChange: (open) => console.log('Drawer:', open),
+    onModeChange: (mode) => console.log('Mode:', mode)
+  }}
+/>
+```
+
+### Collapsed Mode Behavior
+
+When the sidebar is collapsed (tablet mode or manually collapsed):
+
+- **Icons only** - Labels and badges are hidden
+- **Avatar fallback** - Items without icons show a circular avatar with the first letter of their label
+- **Tooltips** - Hover over any item to see its full label in a tooltip
+- **No indentation** - Nested items are centered like root items
+- **Subtle nesting** - Nested items have slightly reduced opacity (0.85)
+
+### Mobile Drawer
+
+On mobile, the sidebar becomes a drawer that slides from the left:
+
+```svelte
+<script lang="ts">
+  import { getSidebarContext } from 'sveltekit-sidebar';
+
+  const ctx = getSidebarContext();
+</script>
+
+<!-- Programmatic control -->
+<button onclick={() => ctx.openDrawer()}>Open Menu</button>
+<button onclick={() => ctx.closeDrawer()}>Close Menu</button>
+<button onclick={() => ctx.toggleDrawer()}>Toggle Menu</button>
+
+<!-- Check state -->
+{#if ctx.drawerOpen}
+  <p>Drawer is open</p>
+{/if}
+```
+
+### Custom Mobile Trigger
+
+Replace the default hamburger button with your own:
+
+```svelte
+<Sidebar config={sidebarConfig}>
+  {#snippet mobileTrigger(open, toggle)}
+    <button class="my-menu-btn" onclick={toggle} aria-expanded={open}>
+      {open ? '✕' : '☰'} Menu
+    </button>
+  {/snippet}
+</Sidebar>
+
+<style>
+  .my-menu-btn {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 999;
+  }
+</style>
+```
+
+### Disable Responsive
+
+To disable responsive behavior entirely:
+
+```svelte
+<Sidebar
+  config={sidebarConfig}
+  settings={{
+    responsive: { enabled: false }
+  }}
+/>
+```
+
+### SSR Considerations
+
+To prevent hydration mismatches, the sidebar uses `defaultMode: 'desktop'` for server-side rendering. CSS media queries provide responsive fallbacks before JavaScript hydrates.
 
 ---
 
@@ -862,6 +1074,25 @@ Import the default styles and override CSS custom properties:
 
     /* Animation */
     --sidebar-animation-easing: ease-out;
+
+    /* Responsive */
+    --sidebar-breakpoint-mobile: 768px;
+    --sidebar-breakpoint-tablet: 1024px;
+    --sidebar-drawer-width: min(320px, 85vw);
+    --sidebar-backdrop-color: rgba(0, 0, 0, 0.5);
+    --sidebar-drawer-z-index: 1000;
+    --sidebar-mobile-trigger-size: 44px;
+
+    /* Collapsed mode avatars (items without icons) */
+    --sidebar-avatar-size: 28px;
+    --sidebar-avatar-bg: hsl(220 15% 85%);
+    --sidebar-avatar-color: hsl(220 15% 35%);
+    --sidebar-avatar-font-size: 12px;
+    --sidebar-avatar-font-weight: 600;
+
+    /* Collapsed mode tooltips */
+    --sidebar-tooltip-bg: hsl(0 0% 20%);
+    --sidebar-tooltip-color: white;
   }
 </style>
 ```
@@ -978,7 +1209,9 @@ export {
   SidebarGroup,
   SidebarIcon,
   SidebarTrigger,
-  SidebarLiveRegion
+  SidebarLiveRegion,
+  SidebarBackdrop,
+  SidebarMobileTrigger
 } from 'sveltekit-sidebar';
 
 // Context
@@ -1010,7 +1243,9 @@ export type {
   SidebarDnDState,
   DropPosition,
   KeyboardDragState,
-  PointerDragState
+  PointerDragState,
+  SidebarResponsiveSettings,
+  SidebarResponsiveMode
 } from 'sveltekit-sidebar';
 
 // Type Guards
@@ -1089,22 +1324,26 @@ export {
 
 ### Mobile Responsive
 
+The sidebar has built-in responsive behavior. For custom mobile handling:
+
 ```svelte
 <script lang="ts">
   import { Sidebar, getSidebarContext } from 'sveltekit-sidebar';
 
-  let isMobile = $state(false);
-
-  $effect(() => {
-    const mq = window.matchMedia('(max-width: 768px)');
-    isMobile = mq.matches;
-    mq.addEventListener('change', (e) => isMobile = e.matches);
-  });
+  const ctx = getSidebarContext();
 </script>
 
-{#if !isMobile || !ctx.isCollapsed}
-  <Sidebar {config} />
+<!-- React to responsive mode changes -->
+{#if ctx.responsiveMode === 'mobile'}
+  <header class="mobile-header">
+    <button onclick={() => ctx.toggleDrawer()}>
+      {ctx.drawerOpen ? '✕' : '☰'}
+    </button>
+    <h1>My App</h1>
+  </header>
 {/if}
+
+<Sidebar {config} />
 ```
 
 ### Persist Custom State

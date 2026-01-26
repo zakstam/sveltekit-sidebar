@@ -8,13 +8,15 @@
 		SidebarEvents,
 		SidebarSchema,
 		SidebarRenderContext,
-		SidebarReorderEvent
+		SidebarReorderEvent,
+		DropPosition
 	} from '../types.js';
 	import { createSidebarContext } from '../context.svelte.js';
 	import SidebarContent from './SidebarContent.svelte';
 	import SidebarTrigger from './SidebarTrigger.svelte';
 	import SidebarLiveRegion from './SidebarLiveRegion.svelte';
 	import SidebarBackdrop from './SidebarBackdrop.svelte';
+	import SidebarMobileTrigger from './SidebarMobileTrigger.svelte';
 
 	let {
 		// New API
@@ -43,7 +45,10 @@
 		// Drag and drop
 		draggable = false,
 		onReorder,
-		dragPreview
+		dragPreview,
+		dropIndicator,
+		livePreview = true,
+		animated = true
 	}: {
 		// New API
 		data?: T[];
@@ -74,6 +79,12 @@
 		onReorder?: (event: SidebarReorderEvent<T>) => void;
 		/** Custom drag preview snippet - receives the item being dragged and its render context */
 		dragPreview?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
+		/** Custom drop indicator snippet. Falls back to built-in faded item preview. */
+		dropIndicator?: Snippet<[position: DropPosition, draggedLabel: string]>;
+		/** Show live preview (items move during drag). Set to false to use custom drop indicators only. Default: true */
+		livePreview?: boolean;
+		/** Enable smooth animations when items reorder (default: true) */
+		animated?: boolean;
 	} = $props();
 
 	// Create and provide context - detects which API is being used
@@ -91,7 +102,8 @@
 	const snippets = $derived({
 		page: pageSnippet,
 		group: groupSnippet,
-		section: sectionSnippet
+		section: sectionSnippet,
+		dropIndicator
 	});
 
 	// Keep context snippets in sync
@@ -99,11 +111,19 @@
 		ctx.snippets = snippets;
 	});
 
+	// Track previous pathname to detect actual navigation
+	let previousPathname = '';
+
 	// Single $page subscription - sync pathname to context
 	$effect(() => {
-		ctx.setActiveHref($page.url.pathname);
-		// Close drawer on navigation if configured
-		ctx.handleNavigation();
+		const currentPathname = $page.url.pathname;
+		ctx.setActiveHref(currentPathname);
+
+		// Only close drawer on actual navigation (URL change), not initial mount
+		if (previousPathname && previousPathname !== currentPathname) {
+			ctx.handleNavigation();
+		}
+		previousPathname = currentPathname;
 	});
 
 	// Clean up on destroy
@@ -133,13 +153,19 @@
 
 		ctx.dndEnabled = draggable;
 		ctx.onReorder = onReorder;
+		ctx.livePreview = livePreview;
+		ctx.animated = animated;
 	});
 
-	// Sync drag preview element to context
-	$effect(() => {
-		if (dragPreviewElement && dragPreview) {
+	// Sync drag preview element to context immediately when available
+	$effect.pre(() => {
+		if (dragPreviewElement) {
 			ctx.setDragPreviewElement(dragPreviewElement);
 		}
+	});
+
+	// Cleanup on unmount
+	$effect(() => {
 		return () => {
 			ctx.setDragPreviewElement(null);
 		};
@@ -181,12 +207,63 @@
 			ctx.setScrollContainer(null);
 		};
 	});
+
+	// Tooltip handling for collapsed mode
+	let sidebarElement: HTMLElement;
+	let tooltipElement: HTMLElement;
+	let currentTooltipTarget: HTMLElement | null = null;
+
+	$effect(() => {
+		if (!sidebarElement || typeof window === 'undefined') return;
+
+		function handleMouseOver(e: MouseEvent) {
+			if (!ctx.isCollapsed || !tooltipElement) return;
+
+			const target = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
+			if (!target || target === currentTooltipTarget) return;
+
+			currentTooltipTarget = target;
+			const text = target.getAttribute('data-tooltip');
+			if (!text) return;
+
+			const rect = target.getBoundingClientRect();
+			tooltipElement.textContent = text;
+			tooltipElement.style.top = `${rect.top + rect.height / 2}px`;
+			tooltipElement.style.left = `${rect.right + 8}px`;
+			tooltipElement.style.transform = 'translateY(-50%)';
+			tooltipElement.classList.add('sidebar-tooltip--visible');
+		}
+
+		function handleMouseOut(e: MouseEvent) {
+			if (!tooltipElement) return;
+
+			const relatedTarget = e.relatedTarget as HTMLElement | null;
+			const stillInTooltipTarget = relatedTarget?.closest('[data-tooltip]') === currentTooltipTarget;
+
+			if (!stillInTooltipTarget) {
+				tooltipElement.classList.remove('sidebar-tooltip--visible');
+				currentTooltipTarget = null;
+			}
+		}
+
+		sidebarElement.addEventListener('mouseover', handleMouseOver);
+		sidebarElement.addEventListener('mouseout', handleMouseOut);
+
+		return () => {
+			sidebarElement.removeEventListener('mouseover', handleMouseOver);
+			sidebarElement.removeEventListener('mouseout', handleMouseOut);
+		};
+	});
 </script>
 
 <!-- Mobile trigger rendered outside sidebar for accessibility -->
-{#if isResponsiveEnabled && isMobileMode && mobileTrigger}
+{#if isResponsiveEnabled && isMobileMode}
 	<div class="sidebar-mobile-trigger-container">
-		{@render mobileTrigger()}
+		{#if mobileTrigger}
+			{@render mobileTrigger()}
+		{:else}
+			<SidebarMobileTrigger />
+		{/if}
 	</div>
 {/if}
 
@@ -194,7 +271,11 @@
 	<SidebarBackdrop />
 {/if}
 
+<!-- Tooltip element for collapsed mode -->
+<div bind:this={tooltipElement} class="sidebar-tooltip" aria-hidden="true"></div>
+
 <aside
+	bind:this={sidebarElement}
 	id="sidebar-drawer"
 	class="sidebar {className}"
 	class:sidebar--collapsed={ctx.isCollapsed}
@@ -239,13 +320,15 @@
 	</div>
 </aside>
 
-<!-- Custom drag preview container (rendered off-screen, used by setDragImage) -->
-{#if draggable && dragPreview && draggedItemInfo && draggedItemRenderCtx}
+<!-- Custom drag preview container (always rendered when dragPreview is provided, so it exists before drag starts) -->
+{#if draggable && dragPreview}
 	<div
 		bind:this={dragPreviewElement}
 		class="sidebar-drag-preview"
 		aria-hidden="true"
 	>
-		{@render dragPreview(draggedItemInfo.item, draggedItemRenderCtx)}
+		{#if draggedItemInfo && draggedItemRenderCtx}
+			{@render dragPreview(draggedItemInfo.item, draggedItemRenderCtx)}
+		{/if}
 	</div>
 {/if}

@@ -225,6 +225,14 @@ export interface SidebarDnDState {
 	isKeyboardDragging: boolean;
 	/** Whether pointer/touch drag is active */
 	isPointerDragging: boolean;
+	/** Whether this item is currently a drop target */
+	isDropTarget: boolean;
+	/** Where the drop will occur relative to this item ('before' | 'inside' | 'after') */
+	dropPosition: DropPosition | null;
+	/** Label of the item being dragged (for custom drop indicators) */
+	draggedLabel: string | null;
+	/** Whether this item is the preview placeholder (the dragged item shown at its target position) */
+	isPreview: boolean;
 	/** Props to spread on drag handle element */
 	handleProps: {
 		draggable: boolean;
@@ -415,10 +423,33 @@ export interface SidebarProps<T = SidebarItem | SidebarSection> {
 	settings?: SidebarSettings;
 	class?: string;
 	events?: SidebarEvents;
+
+	// ---- Drag and Drop Props ----
+
 	/** Enable built-in drag-and-drop reordering */
 	draggable?: boolean;
 	/** Callback fired when an item is reordered via drag-and-drop */
 	onReorder?: (event: SidebarReorderEvent<T>) => void;
+	/** Enable smooth animations when items reorder (default: true) */
+	animated?: boolean;
+	/**
+	 * Show live preview (items move during drag to show where they'll be placed).
+	 * Default: true
+	 */
+	livePreview?: boolean;
+	/**
+	 * Custom drag preview snippet - renders the element that follows the cursor during drag.
+	 * If not provided, uses the browser's default drag ghost.
+	 * Receives: (item: T, ctx: SidebarRenderContext<T>)
+	 */
+	dragPreview?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
+	/**
+	 * Custom drop indicator snippet - renders where the item will be dropped.
+	 * If not provided, shows a faded preview of the dragged item at the target position.
+	 * When provided, the faded preview is disabled and only the custom indicator is shown.
+	 * Receives: (position: DropPosition, draggedLabel: string)
+	 */
+	dropIndicator?: Snippet<[position: DropPosition, draggedLabel: string]>;
 }
 
 export interface SidebarContentProps {

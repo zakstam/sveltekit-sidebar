@@ -4,7 +4,8 @@
 		reorderItems,
 		type SidebarSchema,
 		type SidebarRenderContext,
-		type SidebarReorderEvent
+		type SidebarReorderEvent,
+		type DropPosition
 	} from '$lib/index.js';
 	import '$lib/styles/index.css';
 
@@ -143,6 +144,8 @@
 	// =========================================================================
 
 	let editMode = $state(false);
+	let animated = $state(true);
+	let useCustomDropIndicator = $state(false);
 
 	// Handle reorder using built-in DnD
 	function handleReorder(event: SidebarReorderEvent<NavItem>) {
@@ -158,6 +161,14 @@
 	<title>Advanced Example - SvelteKit Sidebar</title>
 </svelte:head>
 
+<!-- Define the custom drop indicator snippet at page level (outside Sidebar) -->
+{#snippet customDropIndicator(position: DropPosition, draggedLabel: string)}
+	<div class="custom-drop-indicator">
+		<span class="custom-drop-indicator__icon">↳</span>
+		<span class="custom-drop-indicator__text">Drop "{draggedLabel}" {position}</span>
+	</div>
+{/snippet}
+
 <div class="advanced-demo">
 	<div class="demo-sidebar">
 		<Sidebar
@@ -166,25 +177,49 @@
 			settings={{ persistCollapsed: false }}
 			draggable={editMode}
 			onReorder={handleReorder}
+			{animated}
+			dropIndicator={useCustomDropIndicator ? customDropIndicator : undefined}
 		>
+			{#snippet dragPreview(item, ctx)}
+				<div class="drag-preview">
+					<span class="drag-preview__emoji">{ctx.meta.emoji}</span>
+					<span class="drag-preview__label">{ctx.label}</span>
+				</div>
+			{/snippet}
+
+
 			{#snippet header()}
 				<div class="demo-header">
 					<span class="demo-logo">🎨</span>
 					<span class="demo-title">Custom Sidebar</span>
 				</div>
-				<label class="edit-toggle">
-					<input type="checkbox" bind:checked={editMode} />
-					<span>Edit Mode</span>
-				</label>
+				<div class="demo-toggles">
+					<label class="edit-toggle">
+						<input type="checkbox" bind:checked={editMode} />
+						<span>Edit Mode</span>
+					</label>
+					{#if editMode}
+						<label class="edit-toggle">
+							<input type="checkbox" bind:checked={animated} />
+							<span>Animated</span>
+						</label>
+						<label class="edit-toggle">
+							<input type="checkbox" bind:checked={useCustomDropIndicator} />
+							<span>Custom Indicator</span>
+						</label>
+					{/if}
+				</div>
 			{/snippet}
 
 			{#snippet section(item, ctx, children)}
 				<section
 					class="custom-section"
+					class:custom-section--collapsed={ctx.isCollapsed}
 					class:custom-section--dragging={ctx.dnd.isDragging}
 					style="--section-color: var(--color-{ctx.meta.color})"
 					{...ctx.dnd.dropZoneProps}
 				>
+					{#if !ctx.isCollapsed}
 					<div class="custom-section__header">
 						{#if ctx.dnd.enabled}
 							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
@@ -194,6 +229,7 @@
 							{ctx.label}
 						</h3>
 					</div>
+					{/if}
 					{@render children()}
 				</section>
 			{/snippet}
@@ -203,16 +239,22 @@
 					class="custom-group"
 					class:custom-group--expanded={ctx.isExpanded}
 					class:custom-group--dragging={ctx.dnd.isDragging}
+					class:custom-group--preview={ctx.dnd.isPreview}
+					class:custom-group--collapsed={ctx.isCollapsed}
 					{...ctx.dnd.dropZoneProps}
 				>
 					<div class="custom-group__row">
-						{#if ctx.dnd.enabled}
+						{#if ctx.dnd.enabled && !ctx.isCollapsed}
 							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
 						{/if}
-						<button class="custom-group__trigger" onclick={ctx.toggleExpanded}>
+						<button class="custom-group__trigger"
+							data-tooltip={ctx.isCollapsed ? ctx.label : undefined}
+							title={ctx.isCollapsed ? ctx.label : undefined} onclick={ctx.toggleExpanded}>
 							<span class="custom-group__emoji">{ctx.meta.emoji}</span>
-							<span class="custom-group__label">{ctx.label}</span>
-							<span class="custom-group__chevron">{ctx.isExpanded ? '▾' : '▸'}</span>
+							{#if !ctx.isCollapsed}
+								<span class="custom-group__label">{ctx.label}</span>
+								<span class="custom-group__chevron">{ctx.isExpanded ? '▾' : '▸'}</span>
+							{/if}
 						</button>
 					</div>
 					{#if ctx.isExpanded}
@@ -228,23 +270,30 @@
 					class="custom-page"
 					class:custom-page--active={ctx.isActive}
 					class:custom-page--dragging={ctx.dnd.isDragging}
+					class:custom-page--preview={ctx.dnd.isPreview}
+					class:custom-page--collapsed={ctx.isCollapsed}
 					{...ctx.dnd.dropZoneProps}
 				>
 					<div class="custom-page__row">
-						{#if ctx.dnd.enabled}
+						{#if ctx.dnd.enabled && !ctx.isCollapsed}
 							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
 						{/if}
-						<a href={ctx.href} class="custom-page__link">
+						<a href={ctx.href} class="custom-page__link"
+							data-tooltip={ctx.isCollapsed ? ctx.label : undefined}
+							title={ctx.isCollapsed ? ctx.label : undefined}
+						>
 							<span class="custom-page__emoji">{ctx.meta.emoji}</span>
-							<span class="custom-page__label">{ctx.label}</span>
-							{#if ctx.meta.isDraft}
-								<span class="custom-page__draft">Draft</span>
-							{/if}
-							{#if ctx.meta.isNew}
-								<span class="custom-page__new">New</span>
-							{/if}
-							{#if ctx.badge}
-								<span class="custom-page__badge">{ctx.badge}</span>
+							{#if !ctx.isCollapsed}
+								<span class="custom-page__label">{ctx.label}</span>
+								{#if ctx.meta.isDraft}
+									<span class="custom-page__draft">Draft</span>
+								{/if}
+								{#if ctx.meta.isNew}
+									<span class="custom-page__new">New</span>
+								{/if}
+								{#if ctx.badge}
+									<span class="custom-page__badge">{ctx.badge}</span>
+								{/if}
 							{/if}
 						</a>
 					</div>
@@ -362,6 +411,12 @@
 		font-size: 16px;
 	}
 
+	.demo-toggles {
+		display: flex;
+		flex-direction: column;
+		gap: 4px;
+	}
+
 	.edit-toggle {
 		display: flex;
 		align-items: center;
@@ -375,6 +430,29 @@
 
 	.edit-toggle input {
 		cursor: pointer;
+	}
+
+	/* Custom drop indicator styles */
+	.custom-drop-indicator {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		background: linear-gradient(135deg, hsl(220 90% 96%), hsl(260 90% 96%));
+		border: 2px dashed hsl(240 70% 60%);
+		border-radius: 6px;
+		color: hsl(240 70% 40%);
+		font-size: 13px;
+		font-weight: 500;
+		margin: 2px 0;
+	}
+
+	.custom-drop-indicator__icon {
+		font-size: 16px;
+	}
+
+	.custom-drop-indicator__text {
+		flex: 1;
 	}
 
 	.demo-footer {
@@ -483,6 +561,12 @@
 		opacity: 0.4;
 	}
 
+	.custom-page--preview,
+	.custom-group--preview {
+		opacity: 0.5;
+		pointer-events: none;
+	}
+
 	.custom-page__link {
 		display: flex;
 		align-items: center;
@@ -550,6 +634,59 @@
 
 	.drag-handle:active {
 		cursor: grabbing;
+	}
+
+	/* Drag Preview (follows cursor) */
+	.drag-preview {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 8px 12px;
+		background: white;
+		border: 1px solid hsl(0 0% 85%);
+		border-radius: 6px;
+		box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+		font-size: 14px;
+	}
+
+	.drag-preview__emoji {
+		font-size: 16px;
+	}
+
+	.drag-preview__label {
+		font-weight: 500;
+		color: #333;
+	}
+
+
+	/* Collapsed Mode Styles */
+	:global(.sidebar--collapsed) .demo-title,
+	:global(.sidebar--collapsed) .edit-toggle,
+	:global(.sidebar--collapsed) .demo-footer {
+		display: none;
+	}
+
+	:global(.sidebar--collapsed) .demo-header {
+		justify-content: center;
+	}
+
+	.custom-section--collapsed {
+		margin-bottom: 8px;
+	}
+
+	.custom-group--collapsed .custom-group__row,
+	.custom-page--collapsed .custom-page__row {
+		justify-content: center;
+	}
+
+	.custom-group--collapsed .custom-group__trigger,
+	.custom-page--collapsed .custom-page__link {
+		justify-content: center;
+		padding: 8px;
+	}
+
+	.custom-group--collapsed .custom-group__content {
+		padding-left: 0;
 	}
 
 	/* Demo Content Styles */

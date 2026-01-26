@@ -7,3 +7,5 @@ export { default as SidebarGroup } from './SidebarGroup.svelte';
 export { default as SidebarIcon } from './SidebarIcon.svelte';
 export { default as SidebarTrigger } from './SidebarTrigger.svelte';
 export { default as SidebarLiveRegion } from './SidebarLiveRegion.svelte';
+export { default as SidebarBackdrop } from './SidebarBackdrop.svelte';
+export { default as SidebarMobileTrigger } from './SidebarMobileTrigger.svelte';

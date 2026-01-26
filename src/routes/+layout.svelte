@@ -7,7 +7,13 @@
 </script>
 
 <div class="layout">
-	<Sidebar config={sidebarConfig}>
+	<Sidebar
+		config={sidebarConfig}
+		events={{
+			onModeChange: (mode) => console.log('Mode changed:', mode),
+			onOpenChange: (open) => console.log('Drawer open:', open)
+		}}
+	>
 		{#snippet header()}
 			<div class="logo">
 				<span class="logo__icon">📑</span>
@@ -17,7 +23,7 @@
 
 		{#snippet footer()}
 			<div class="footer-info">
-				<span>v0.1.0</span>
+				<span>v0.4.0</span>
 			</div>
 		{/snippet}
 	</Sidebar>
@@ -55,6 +61,13 @@
 		overflow-y: auto;
 		padding: 2rem;
 		background: hsl(0 0% 98%);
+	}
+
+	/* On mobile, main takes full width since sidebar is an overlay */
+	@media (max-width: 767px) {
+		.main {
+			padding-top: 4rem; /* Space for mobile trigger */
+		}
 	}
 
 	.logo {

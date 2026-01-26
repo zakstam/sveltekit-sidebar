@@ -62,8 +62,27 @@
 	/* Icon */
 	--sidebar-icon-size: 20px;
 
+	/* Collapsed mode avatars */
+	--sidebar-avatar-size: 28px;
+	--sidebar-avatar-bg: hsl(220 15% 85%);
+	--sidebar-avatar-color: hsl(220 15% 35%);
+	--sidebar-avatar-font-size: 12px;
+	--sidebar-avatar-font-weight: 600;
+
+	/* Tooltip */
+	--sidebar-tooltip-bg: hsl(0 0% 20%);
+	--sidebar-tooltip-color: white;
+
 	/* Z-index */
 	--sidebar-z-index: 100;
+
+	/* Responsive */
+	--sidebar-breakpoint-mobile: 768px;
+	--sidebar-breakpoint-tablet: 1024px;
+	--sidebar-drawer-width: min(320px, 85vw);
+	--sidebar-backdrop-color: rgba(0, 0, 0, 0.5);
+	--sidebar-drawer-z-index: 1000;
+	--sidebar-mobile-trigger-size: 44px;
 }
 
 /* Dark mode variant - uncomment or add to your application */

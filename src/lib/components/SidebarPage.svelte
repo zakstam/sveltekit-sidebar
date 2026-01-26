@@ -18,7 +18,8 @@
 
 	// Derived values for default rendering
 	const isCollapsed = $derived(ctx.isCollapsed);
-	const showLabel = $derived(!isCollapsed || depth > 0);
+	const showLabel = $derived(!isCollapsed);
+	const showAvatar = $derived(isCollapsed && !renderCtx.icon);
 
 	function handleClick() {
 		// Legacy compatibility: call handleNavigate if using built-in types
@@ -36,6 +37,7 @@
 		class:sidebar-page--dragging={renderCtx.dnd.isDragging}
 		class:sidebar-page--keyboard-dragging={renderCtx.dnd.isKeyboardDragging}
 		class:sidebar-page--pointer-dragging={renderCtx.dnd.isPointerDragging}
+		class:sidebar-page--preview={renderCtx.dnd.isPreview}
 		style="--depth: {depth}"
 		{...renderCtx.dnd.dropZoneProps}
 	>
@@ -47,15 +49,19 @@
 			class="sidebar-page__link {className}"
 			class:sidebar-page__link--active={renderCtx.isActive}
 			class:sidebar-page__link--disabled={renderCtx.isDisabled}
-			class:sidebar-page__link--collapsed={isCollapsed && depth === 0}
+			class:sidebar-page__link--collapsed={isCollapsed}
 			aria-current={renderCtx.isActive ? 'page' : undefined}
 			aria-disabled={renderCtx.isDisabled}
 			target={renderCtx.isExternal ? '_blank' : undefined}
 			rel={renderCtx.isExternal ? 'noopener noreferrer' : undefined}
+			data-tooltip={isCollapsed ? renderCtx.label : undefined}
+			title={isCollapsed ? renderCtx.label : undefined}
 			onclick={handleClick}
 		>
 			{#if renderCtx.icon}
 				<SidebarIcon icon={renderCtx.icon} class="sidebar-page__icon" />
+			{:else if showAvatar}
+				<span class="sidebar-avatar">{renderCtx.label.charAt(0)}</span>
 			{/if}
 
 			{#if showLabel}

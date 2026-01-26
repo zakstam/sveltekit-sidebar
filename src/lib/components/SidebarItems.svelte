@@ -22,7 +22,15 @@
 	>
 		{#each previewList as item, index (ctx.getId(item))}
 			{@const kind = ctx.getKind(item)}
-			{#if kind === 'page'}
+			{@const isPreview = ctx.isPreviewItem(ctx.getId(item))}
+			{@const dropIndicator = ctx.snippets?.dropIndicator}
+			{@const draggedLabel = ctx.draggedItem ? ctx.getLabel(ctx.draggedItem.item) : ''}
+			{#if isPreview && dropIndicator}
+				<!-- Custom drop indicator instead of faded preview -->
+				<li class="sidebar-drop-indicator-wrapper">
+					{@render dropIndicator(ctx.dropPosition ?? 'before', draggedLabel)}
+				</li>
+			{:else if kind === 'page'}
 				<SidebarPage
 					{item}
 					depth={currentDepth}

@@ -21,7 +21,8 @@
 	// Derived values for default rendering
 	const isCollapsed = $derived(ctx.isCollapsed);
 	const isCollapsible = $derived(ctx.getCollapsible(item));
-	const showLabel = $derived(!isCollapsed || depth > 0);
+	const showLabel = $derived(!isCollapsed);
+	const showAvatar = $derived(isCollapsed && !renderCtx.icon);
 	const isExpanded = $derived(renderCtx.isExpanded ?? false);
 	const hasHref = $derived(!!renderCtx.href);
 
@@ -60,6 +61,7 @@
 		class:sidebar-group--dragging={renderCtx.dnd.isDragging}
 		class:sidebar-group--keyboard-dragging={renderCtx.dnd.isKeyboardDragging}
 		class:sidebar-group--pointer-dragging={renderCtx.dnd.isPointerDragging}
+		class:sidebar-group--preview={renderCtx.dnd.isPreview}
 		style="--depth: {depth}"
 		{...renderCtx.dnd.dropZoneProps}
 	>
@@ -71,16 +73,20 @@
 				href={renderCtx.href}
 				class="sidebar-group__trigger {className}"
 				class:sidebar-group__trigger--expanded={isExpanded}
-				class:sidebar-group__trigger--collapsed={isCollapsed && depth === 0}
+				class:sidebar-group__trigger--collapsed={isCollapsed}
 				class:sidebar-group__trigger--active={renderCtx.isActive}
 				aria-expanded={isCollapsible ? isExpanded : undefined}
 				aria-current={renderCtx.isActive ? 'page' : undefined}
 				target={renderCtx.isExternal ? '_blank' : undefined}
 				rel={renderCtx.isExternal ? 'noopener noreferrer' : undefined}
+				data-tooltip={isCollapsed ? renderCtx.label : undefined}
+				title={isCollapsed ? renderCtx.label : undefined}
 				onclick={handleClick}
 			>
 				{#if renderCtx.icon}
 					<SidebarIcon icon={renderCtx.icon} class="sidebar-group__icon" />
+				{:else if showAvatar}
+					<span class="sidebar-avatar">{renderCtx.label.charAt(0)}</span>
 				{/if}
 
 				{#if showLabel}
@@ -123,15 +129,19 @@
 				type="button"
 				class="sidebar-group__trigger {className}"
 				class:sidebar-group__trigger--expanded={isExpanded}
-				class:sidebar-group__trigger--collapsed={isCollapsed && depth === 0}
+				class:sidebar-group__trigger--collapsed={isCollapsed}
 				class:sidebar-group__trigger--non-collapsible={!isCollapsible}
 				aria-expanded={isCollapsible ? isExpanded : undefined}
+				data-tooltip={isCollapsed ? renderCtx.label : undefined}
+				title={isCollapsed ? renderCtx.label : undefined}
 				onclick={handleToggle}
 				onkeydown={handleKeydown}
 				disabled={!isCollapsible}
 			>
 				{#if renderCtx.icon}
 					<SidebarIcon icon={renderCtx.icon} class="sidebar-group__icon" />
+				{:else if showAvatar}
+					<span class="sidebar-avatar">{renderCtx.label.charAt(0)}</span>
 				{/if}
 
 				{#if showLabel}

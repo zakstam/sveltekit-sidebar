@@ -26,7 +26,10 @@ export type {
 	SidebarDnDState,
 	DropPosition,
 	KeyboardDragState,
-	PointerDragState
+	PointerDragState,
+	// Responsive types
+	SidebarResponsiveSettings,
+	SidebarResponsiveMode
 } from './types.js';
 
 // Conflicting types (renamed to avoid collision with component names)
@@ -60,7 +63,9 @@ export {
 	SidebarGroup,
 	SidebarIcon,
 	SidebarTrigger,
-	SidebarLiveRegion
+	SidebarLiveRegion,
+	SidebarBackdrop,
+	SidebarMobileTrigger
 } from './components/index.js';
 
 // ============================================================================
