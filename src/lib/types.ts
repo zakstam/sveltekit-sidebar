@@ -112,6 +112,52 @@ export interface SidebarState {
 }
 
 // ============================================================================
+// Drag and Drop Types
+// ============================================================================
+
+/**
+ * Event fired when a drag-and-drop reorder completes
+ */
+export interface SidebarReorderEvent<T = unknown> {
+	/** The item that was moved */
+	item: T;
+	/** Original index in parent */
+	fromIndex: number;
+	/** New index in parent */
+	toIndex: number;
+	/** Original parent ID (null = root section) */
+	fromParentId: string | null;
+	/** Target parent ID (null = root section) */
+	toParentId: string | null;
+	/** Target nesting depth */
+	depth: number;
+}
+
+/**
+ * DnD state passed to render context for custom rendering
+ */
+export interface SidebarDnDState {
+	/** DnD is active (draggable prop is true) */
+	enabled: boolean;
+	/** This item is currently being dragged */
+	isDragging: boolean;
+	/** Drop indicator is showing on this item */
+	isDropTarget: boolean;
+	/** Props to spread on drag handle element */
+	handleProps: {
+		draggable: boolean;
+		ondragstart: (e: DragEvent) => void;
+		ondragend: (e: DragEvent) => void;
+	};
+	/** Props to spread on drop zone element */
+	dropZoneProps: {
+		ondragover: (e: DragEvent) => void;
+		ondragleave: (e: DragEvent) => void;
+		ondrop: (e: DragEvent) => void;
+	};
+}
+
+// ============================================================================
 // Event Types
 // ============================================================================
 
@@ -221,6 +267,8 @@ export interface SidebarRenderContext<T = unknown> {
 	original: T;
 	/** Toggle expanded state (only for groups) */
 	toggleExpanded?: () => void;
+	/** Drag and drop state and handlers */
+	dnd: SidebarDnDState;
 }
 
 /**
@@ -262,6 +310,10 @@ export interface SidebarProps<T = SidebarItem | SidebarSection> {
 	settings?: SidebarSettings;
 	class?: string;
 	events?: SidebarEvents;
+	/** Enable built-in drag-and-drop reordering */
+	draggable?: boolean;
+	/** Callback fired when an item is reordered via drag-and-drop */
+	onReorder?: (event: SidebarReorderEvent<T>) => void;
 }
 
 export interface SidebarContentProps {
@@ -270,24 +322,36 @@ export interface SidebarContentProps {
 
 export interface SidebarSectionProps<T = SidebarSection> {
 	section: T;
+	/** Index of this section in the root data array (for DnD) */
+	index?: number;
 	class?: string;
 }
 
 export interface SidebarItemsProps<T = SidebarItem> {
 	items: T[];
 	depth?: number;
+	/** Parent ID for DnD tracking (null = root level) */
+	parentId?: string | null;
 }
 
 export interface SidebarPageProps<T = SidebarPage> {
 	item: T;
 	depth?: number;
 	class?: string;
+	/** Parent ID for DnD tracking (null = root level) */
+	parentId?: string | null;
+	/** Index within parent for DnD tracking */
+	index?: number;
 }
 
 export interface SidebarGroupProps<T = SidebarGroup> {
 	item: T;
 	depth?: number;
 	class?: string;
+	/** Parent ID for DnD tracking (null = root level) */
+	parentId?: string | null;
+	/** Index within parent for DnD tracking */
+	index?: number;
 }
 
 export interface SidebarIconProps {

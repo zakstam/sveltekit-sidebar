@@ -20,7 +20,10 @@ export type {
 	// Schema types (new generic API)
 	ItemKind,
 	SidebarSchema,
-	SidebarRenderContext
+	SidebarRenderContext,
+	// Drag and Drop types
+	SidebarReorderEvent,
+	SidebarDnDState
 } from './types.js';
 
 // Conflicting types (renamed to avoid collision with component names)
@@ -84,6 +87,13 @@ export {
 	getItemDepth,
 	isDescendantOf
 } from './utils/type-helpers.js';
+
+// ============================================================================
+// Utilities - Drag and Drop
+// ============================================================================
+
+export { reorderItems } from './utils/reorder.js';
+export type { ReorderOptions } from './utils/reorder.js';
 
 // ============================================================================
 // Utilities - Builder API

@@ -317,6 +317,66 @@ a.sidebar-group__trigger {
 }
 
 /* ============================================================================
+   Drag and Drop
+   ============================================================================ */
+
+/* Drag handle */
+.sidebar-page__drag-handle,
+.sidebar-group__drag-handle {
+	cursor: grab;
+	color: var(--sidebar-drag-handle-color, hsl(0 0% 60%));
+	padding: 4px;
+	margin-right: 4px;
+	user-select: none;
+	font-size: 12px;
+	letter-spacing: -2px;
+}
+
+.sidebar-page__drag-handle:active,
+.sidebar-group__drag-handle:active {
+	cursor: grabbing;
+}
+
+/* Dragging state */
+.sidebar-page--dragging,
+.sidebar-group--dragging {
+	opacity: 0.5;
+}
+
+/* Drop target indicator */
+.sidebar-page--drop-target,
+.sidebar-group--drop-target {
+	background: var(--sidebar-drop-target-bg, hsl(220 90% 95%));
+	outline: 2px dashed var(--sidebar-drop-target-border, hsl(220 90% 50%));
+	outline-offset: -2px;
+	border-radius: var(--sidebar-item-border-radius);
+}
+
+/* Ensure drag handle and link/button are on same row */
+.sidebar-page,
+.sidebar-group {
+	position: relative;
+}
+
+.sidebar-page--drop-target > .sidebar-page__link,
+.sidebar-group--drop-target > .sidebar-group__trigger {
+	background: transparent;
+}
+
+/* Layout for items with drag handle */
+.sidebar-page:has(.sidebar-page__drag-handle),
+.sidebar-group:has(.sidebar-group__drag-handle) {
+	display: flex;
+	align-items: center;
+}
+
+.sidebar-page:has(.sidebar-page__drag-handle) > .sidebar-page__link,
+.sidebar-group:has(.sidebar-group__drag-handle) > .sidebar-group__trigger {
+	flex: 1;
+	min-width: 0;
+}
+
+/* ============================================================================
    Sidebar Icon
    ============================================================================ */
 

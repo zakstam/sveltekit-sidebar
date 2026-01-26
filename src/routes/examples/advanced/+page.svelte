@@ -1,5 +1,11 @@
 <script lang="ts">
-	import { Sidebar, type SidebarSchema, type SidebarRenderContext } from '$lib/index.js';
+	import {
+		Sidebar,
+		reorderItems,
+		type SidebarSchema,
+		type SidebarRenderContext,
+		type SidebarReorderEvent
+	} from '$lib/index.js';
 	import '$lib/styles/index.css';
 
 	// =========================================================================
@@ -137,14 +143,14 @@
 	// =========================================================================
 
 	let editMode = $state(false);
-	let draggedId = $state<string | null>(null);
 
-	function handleDragStart(id: string) {
-		draggedId = id;
-	}
-
-	function handleDragEnd() {
-		draggedId = null;
+	// Handle reorder using built-in DnD
+	function handleReorder(event: SidebarReorderEvent<NavItem>) {
+		navigation = reorderItems(navigation, event, {
+			getId: (item) => item.id,
+			getItems: (item) => item.children,
+			setItems: (item, children) => ({ ...item, children })
+		});
 	}
 </script>
 
@@ -154,7 +160,13 @@
 
 <div class="advanced-demo">
 	<div class="demo-sidebar">
-		<Sidebar data={navigation} {schema} settings={{ persistCollapsed: false }}>
+		<Sidebar
+			data={navigation}
+			{schema}
+			settings={{ persistCollapsed: false }}
+			draggable={editMode}
+			onReorder={handleReorder}
+		>
 			{#snippet header()}
 				<div class="demo-header">
 					<span class="demo-logo">🎨</span>
@@ -167,11 +179,22 @@
 			{/snippet}
 
 			{#snippet section(item, ctx, children)}
-				<section class="custom-section" style="--section-color: var(--color-{ctx.meta.color})">
-					<h3 class="custom-section__title">
-						<span class="custom-section__color-dot"></span>
-						{ctx.label}
-					</h3>
+				<section
+					class="custom-section"
+					class:custom-section--dragging={ctx.dnd.isDragging}
+					class:custom-section--drop-target={ctx.dnd.isDropTarget}
+					style="--section-color: var(--color-{ctx.meta.color})"
+					{...ctx.dnd.dropZoneProps}
+				>
+					<div class="custom-section__header">
+						{#if ctx.dnd.enabled}
+							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
+						{/if}
+						<h3 class="custom-section__title">
+							<span class="custom-section__color-dot"></span>
+							{ctx.label}
+						</h3>
+					</div>
 					{@render children()}
 				</section>
 			{/snippet}
@@ -180,19 +203,20 @@
 				<li
 					class="custom-group"
 					class:custom-group--expanded={ctx.isExpanded}
-					class:custom-group--dragging={draggedId === ctx.id}
-					draggable={editMode}
-					ondragstart={() => handleDragStart(ctx.id)}
-					ondragend={handleDragEnd}
+					class:custom-group--dragging={ctx.dnd.isDragging}
+					class:custom-group--drop-target={ctx.dnd.isDropTarget}
+					{...ctx.dnd.dropZoneProps}
 				>
-					<button class="custom-group__trigger" onclick={ctx.toggleExpanded}>
-						{#if editMode}
-							<span class="drag-handle">⋮⋮</span>
+					<div class="custom-group__row">
+						{#if ctx.dnd.enabled}
+							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
 						{/if}
-						<span class="custom-group__emoji">{ctx.meta.emoji}</span>
-						<span class="custom-group__label">{ctx.label}</span>
-						<span class="custom-group__chevron">{ctx.isExpanded ? '▾' : '▸'}</span>
-					</button>
+						<button class="custom-group__trigger" onclick={ctx.toggleExpanded}>
+							<span class="custom-group__emoji">{ctx.meta.emoji}</span>
+							<span class="custom-group__label">{ctx.label}</span>
+							<span class="custom-group__chevron">{ctx.isExpanded ? '▾' : '▸'}</span>
+						</button>
+					</div>
 					{#if ctx.isExpanded}
 						<div class="custom-group__content">
 							{@render children()}
@@ -205,27 +229,28 @@
 				<li
 					class="custom-page"
 					class:custom-page--active={ctx.isActive}
-					class:custom-page--dragging={draggedId === ctx.id}
-					draggable={editMode}
-					ondragstart={() => handleDragStart(ctx.id)}
-					ondragend={handleDragEnd}
+					class:custom-page--dragging={ctx.dnd.isDragging}
+					class:custom-page--drop-target={ctx.dnd.isDropTarget}
+					{...ctx.dnd.dropZoneProps}
 				>
-					<a href={ctx.href} class="custom-page__link">
-						{#if editMode}
-							<span class="drag-handle">⋮⋮</span>
+					<div class="custom-page__row">
+						{#if ctx.dnd.enabled}
+							<span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
 						{/if}
-						<span class="custom-page__emoji">{ctx.meta.emoji}</span>
-						<span class="custom-page__label">{ctx.label}</span>
-						{#if ctx.meta.isDraft}
-							<span class="custom-page__draft">Draft</span>
-						{/if}
-						{#if ctx.meta.isNew}
-							<span class="custom-page__new">New</span>
-						{/if}
-						{#if ctx.badge}
-							<span class="custom-page__badge">{ctx.badge}</span>
-						{/if}
-					</a>
+						<a href={ctx.href} class="custom-page__link">
+							<span class="custom-page__emoji">{ctx.meta.emoji}</span>
+							<span class="custom-page__label">{ctx.label}</span>
+							{#if ctx.meta.isDraft}
+								<span class="custom-page__draft">Draft</span>
+							{/if}
+							{#if ctx.meta.isNew}
+								<span class="custom-page__new">New</span>
+							{/if}
+							{#if ctx.badge}
+								<span class="custom-page__badge">{ctx.badge}</span>
+							{/if}
+						</a>
+					</div>
 				</li>
 			{/snippet}
 
@@ -368,6 +393,22 @@
 		margin-bottom: 16px;
 	}
 
+	.custom-section--dragging {
+		opacity: 0.5;
+	}
+
+	.custom-section--drop-target {
+		background: hsl(220 90% 95%);
+		outline: 2px dashed hsl(220 90% 50%);
+		outline-offset: -2px;
+		border-radius: 6px;
+	}
+
+	.custom-section__header {
+		display: flex;
+		align-items: center;
+	}
+
 	.custom-section__title {
 		display: flex;
 		align-items: center;
@@ -393,15 +434,27 @@
 		list-style: none;
 	}
 
+	.custom-group__row {
+		display: flex;
+		align-items: center;
+	}
+
 	.custom-group--dragging {
 		opacity: 0.5;
+	}
+
+	.custom-group--drop-target {
+		background: hsl(220 90% 95%);
+		outline: 2px dashed hsl(220 90% 50%);
+		outline-offset: -2px;
+		border-radius: 6px;
 	}
 
 	.custom-group__trigger {
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		width: 100%;
+		flex: 1;
 		padding: 8px 12px;
 		border: none;
 		background: transparent;
@@ -438,14 +491,27 @@
 		list-style: none;
 	}
 
+	.custom-page__row {
+		display: flex;
+		align-items: center;
+	}
+
 	.custom-page--dragging {
 		opacity: 0.5;
+	}
+
+	.custom-page--drop-target {
+		background: hsl(220 90% 95%);
+		outline: 2px dashed hsl(220 90% 50%);
+		outline-offset: -2px;
+		border-radius: 6px;
 	}
 
 	.custom-page__link {
 		display: flex;
 		align-items: center;
 		gap: 8px;
+		flex: 1;
 		padding: 8px 12px;
 		text-decoration: none;
 		color: #333;

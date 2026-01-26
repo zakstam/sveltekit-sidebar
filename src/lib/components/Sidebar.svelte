@@ -6,7 +6,8 @@
 		SidebarSettings,
 		SidebarEvents,
 		SidebarSchema,
-		SidebarRenderContext
+		SidebarRenderContext,
+		SidebarReorderEvent
 	} from '../types.js';
 	import { createSidebarContext } from '../context.svelte.js';
 	import SidebarContent from './SidebarContent.svelte';
@@ -31,7 +32,11 @@
 		class: className = '',
 		header,
 		footer,
-		children
+		children,
+
+		// Drag and drop
+		draggable = false,
+		onReorder
 	}: {
 		// New API
 		data?: T[];
@@ -52,6 +57,10 @@
 		header?: Snippet;
 		footer?: Snippet;
 		children?: Snippet;
+
+		// Drag and drop
+		draggable?: boolean;
+		onReorder?: (event: SidebarReorderEvent<T>) => void;
 	} = $props();
 
 	// Create and provide context - detects which API is being used
@@ -80,6 +89,28 @@
 	// Single $page subscription - sync pathname to context
 	$effect(() => {
 		ctx.setActiveHref($page.url.pathname);
+	});
+
+	// Track previous draggable state to detect changes
+	let prevDraggable = false;
+
+	// Sync DnD props to context - use $effect.pre to ensure it's set before render
+	$effect.pre(() => {
+		// Clean up drag state if draggable was disabled mid-drag
+		if (prevDraggable && !draggable && ctx.draggedItem) {
+			ctx.endDrag();
+		}
+		prevDraggable = draggable;
+
+		ctx.dndEnabled = draggable;
+		ctx.onReorder = onReorder;
+	});
+
+	// Sync data prop to context - needed for DnD to update UI after reorder
+	$effect.pre(() => {
+		if (data) {
+			ctx.data = data;
+		}
 	});
 
 	// Derived CSS custom properties

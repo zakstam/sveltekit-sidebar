@@ -10,6 +10,8 @@ import type {
 	SidebarSection,
 	SidebarSchema,
 	SidebarRenderContext,
+	SidebarReorderEvent,
+	SidebarDnDState,
 	ItemKind
 } from './types.js';
 import { defaultSchema } from './types.js';
@@ -47,7 +49,7 @@ export interface SidebarSnippets<T = unknown> {
 export class SidebarContext<T = unknown> {
 	// Configuration (initialized first)
 	readonly schema: SidebarSchema<T>;
-	readonly data: T[]; // Raw sections data
+	data = $state<T[]>([]); // Raw sections data - reactive for DnD reordering
 	readonly settings: Required<SidebarSettings>;
 	readonly events: SidebarEvents;
 
@@ -66,6 +68,14 @@ export class SidebarContext<T = unknown> {
 
 	// Current active pathname - set once from root Sidebar
 	activeHref = $state<string>('');
+
+	// DnD state
+	dndEnabled = $state(false);
+	draggedItem = $state<{ id: string; item: T; parentId: string | null; index: number } | null>(
+		null
+	);
+	dropTargetId = $state<string | null>(null);
+	onReorder?: (event: SidebarReorderEvent<T>) => void;
 
 	// Getters for derived values
 	get width(): string {
@@ -213,10 +223,55 @@ export class SidebarContext<T = unknown> {
 	 * Create a render context for use with custom snippets.
 	 * Contains pre-computed values from the schema for convenience.
 	 */
-	createRenderContext(item: T, depth: number): SidebarRenderContext<T> {
+	createRenderContext(
+		item: T,
+		depth: number,
+		parentId: string | null = null,
+		index: number = 0
+	): SidebarRenderContext<T> {
 		const id = this.getId(item);
 		const href = this.getHref(item);
 		const kind = this.getKind(item);
+
+		// Create DnD state for this item
+		const dnd: SidebarDnDState = {
+			enabled: this.dndEnabled,
+			isDragging: this.draggedItem?.id === id,
+			isDropTarget: this.dropTargetId === id,
+			handleProps: {
+				draggable: this.dndEnabled,
+				ondragstart: (e: DragEvent) => {
+					e.dataTransfer?.setData('text/plain', id);
+					this.startDrag(item, parentId, index);
+				},
+				ondragend: () => {
+					// Defer cleanup to allow ondrop to fire first
+					setTimeout(() => this.endDrag(), 0);
+				}
+			},
+			dropZoneProps: {
+				ondragover: (e: DragEvent) => {
+					e.preventDefault();
+					e.stopPropagation();
+					this.setDropTarget(item, parentId);
+				},
+				ondragleave: (e: DragEvent) => {
+					// Only clear if we're actually leaving this element (not entering a child)
+					const relatedTarget = e.relatedTarget as Node | null;
+					const currentTarget = e.currentTarget as Node | null;
+					if (relatedTarget && currentTarget?.contains(relatedTarget)) {
+						// Moving to a child element, don't clear
+						return;
+					}
+					if (this.dropTargetId === id) this.setDropTarget(null);
+				},
+				ondrop: (e: DragEvent) => {
+					e.preventDefault();
+					e.stopPropagation();
+					this.handleDrop(item, parentId, index, depth);
+				}
+			}
+		};
 
 		return {
 			id,
@@ -232,7 +287,8 @@ export class SidebarContext<T = unknown> {
 			isExternal: this.getExternal(item),
 			meta: this.schema.getMeta?.(item) ?? {},
 			original: item,
-			toggleExpanded: kind === 'group' ? () => this.toggleGroup(id) : undefined
+			toggleExpanded: kind === 'group' ? () => this.toggleGroup(id) : undefined,
+			dnd
 		};
 	}
 
@@ -312,6 +368,187 @@ export class SidebarContext<T = unknown> {
 	 */
 	handleNavigate(page: SidebarPage): void {
 		this.events.onNavigate?.(page);
+	}
+
+	// ========================================================================
+	// Drag and Drop Methods
+	// ========================================================================
+
+	/**
+	 * Start dragging an item
+	 */
+	startDrag(item: T, parentId: string | null, index: number): void {
+		this.draggedItem = {
+			id: this.getId(item),
+			item,
+			parentId,
+			index
+		};
+	}
+
+	/**
+	 * End dragging (cleanup)
+	 */
+	endDrag(): void {
+		this.draggedItem = null;
+		this.dropTargetId = null;
+	}
+
+	/**
+	 * Set the current drop target (with validation)
+	 */
+	setDropTarget(targetItem: T | null, targetParentId?: string | null): void {
+		if (targetItem === null) {
+			this.dropTargetId = null;
+			return;
+		}
+
+		const targetId = this.getId(targetItem);
+		const targetKind = this.getKind(targetItem);
+
+		// Validate drop target if we have drag info
+		if (this.draggedItem && targetParentId !== undefined) {
+			const draggedKind = this.getKind(this.draggedItem.item);
+
+			// Compute the effective parent based on target kind and dragged kind
+			// Special case: sections dropping on sections = sibling reorder (root level)
+			// Groups/sections: non-section items become children, so effective parent is the target
+			// Pages: item becomes a sibling, so effective parent is the target's parent
+			let effectiveParentId: string | null;
+			if (draggedKind === 'section' && targetKind === 'section') {
+				// Section-to-section: sibling reorder at root level
+				effectiveParentId = null;
+			} else if (targetKind === 'group' || targetKind === 'section') {
+				effectiveParentId = targetId;
+			} else {
+				effectiveParentId = targetParentId;
+			}
+
+			// Sections can only be dropped at root level
+			if (draggedKind === 'section' && effectiveParentId !== null) {
+				return; // Don't highlight invalid target
+			}
+
+			// Non-sections cannot be dropped at root level
+			if (draggedKind !== 'section' && effectiveParentId === null) {
+				return; // Don't highlight invalid target
+			}
+
+			// Prevent highlighting if dropping on self or descendant
+			if (this.isDropDescendantOf(targetId, this.draggedItem.id)) {
+				return;
+			}
+		}
+
+		if (this.dropTargetId !== targetId) {
+			this.dropTargetId = targetId;
+		}
+	}
+
+	/**
+	 * Handle drop on a target item
+	 */
+	handleDrop(
+		targetItem: T,
+		targetParentId: string | null,
+		targetIndex: number,
+		targetDepth: number
+	): void {
+		if (!this.draggedItem || !this.onReorder) {
+			return;
+		}
+
+		const targetId = this.getId(targetItem);
+		const targetKind = this.getKind(targetItem);
+
+		// Prevent dropping on self or descendants
+		if (this.isDropDescendantOf(targetId, this.draggedItem.id)) {
+			return;
+		}
+
+		const draggedKind = this.getKind(this.draggedItem.item);
+
+		// Determine the actual drop location based on target kind and dragged kind
+		let toParentId: string | null;
+		let toIndex: number;
+		let toDepth: number;
+
+		if (draggedKind === 'section' && targetKind === 'section') {
+			// Section-to-section: sibling reorder at root level
+			toParentId = null;
+			toIndex = targetIndex;
+			toDepth = targetDepth;
+		} else if (targetKind === 'group') {
+			// Dropping ON a group: item becomes a child of that group
+			toParentId = targetId;
+			toIndex = 0; // Insert at the beginning of the group
+			toDepth = targetDepth + 1;
+		} else if (targetKind === 'section') {
+			// Dropping ON a section: item becomes a child of that section
+			toParentId = targetId;
+			toIndex = 0;
+			toDepth = targetDepth + 1;
+		} else {
+			// Dropping ON a page: item becomes a sibling (placed after the page)
+			toParentId = targetParentId;
+			toIndex = targetIndex;
+			toDepth = targetDepth;
+		}
+
+		// Sections can only be dropped at root level (next to other sections)
+		if (draggedKind === 'section' && toParentId !== null) {
+			return;
+		}
+
+		// Non-sections cannot be dropped at root level (must stay within sections)
+		if (draggedKind !== 'section' && toParentId === null) {
+			return;
+		}
+
+		this.onReorder({
+			item: this.draggedItem.item,
+			fromIndex: this.draggedItem.index,
+			toIndex,
+			fromParentId: this.draggedItem.parentId,
+			toParentId,
+			depth: toDepth
+		});
+
+		this.endDrag();
+	}
+
+	/**
+	 * Check if targetId is the same as ancestorId or is a descendant of it.
+	 * Prevents dropping an item into itself or its children.
+	 */
+	private isDropDescendantOf(targetId: string, ancestorId: string): boolean {
+		if (targetId === ancestorId) return true;
+
+		const findInChildren = (items: T[]): boolean => {
+			for (const item of items) {
+				if (this.getId(item) === ancestorId) {
+					// Found ancestor, check if target is in its subtree
+					return this.containsId(this.getItems(item), targetId);
+				}
+				const children = this.getItems(item);
+				if (children.length && findInChildren(children)) return true;
+			}
+			return false;
+		};
+
+		return findInChildren(this.data);
+	}
+
+	/**
+	 * Check if items array contains an item with the given id (recursively)
+	 */
+	private containsId(items: T[], targetId: string): boolean {
+		for (const item of items) {
+			if (this.getId(item) === targetId) return true;
+			const children = this.getItems(item);
+			if (children.length && this.containsId(children, targetId)) return true;
+		}
+		return false;
 	}
 
 	// ========================================================================

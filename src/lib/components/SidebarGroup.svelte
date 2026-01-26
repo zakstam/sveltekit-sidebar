@@ -8,13 +8,15 @@
 		item,
 		depth = 0,
 		class: className = '',
-		children
+		children,
+		parentId = null,
+		index = 0
 	}: SidebarGroupProps<T> & { children?: Snippet } = $props();
 
 	const ctx = getSidebarContext<T>();
 
 	// Create render context for snippet or default rendering
-	const renderCtx = $derived(ctx.createRenderContext(item, depth));
+	const renderCtx = $derived(ctx.createRenderContext(item, depth, parentId, index));
 
 	// Derived values for default rendering
 	const isCollapsed = $derived(ctx.isCollapsed);
@@ -53,7 +55,16 @@
 {#if ctx.snippets?.group}
 	{@render ctx.snippets.group(item, renderCtx, childrenSnippet)}
 {:else}
-	<li class="sidebar-group" style="--depth: {depth}">
+	<li
+		class="sidebar-group"
+		class:sidebar-group--dragging={renderCtx.dnd.isDragging}
+		class:sidebar-group--drop-target={renderCtx.dnd.isDropTarget}
+		style="--depth: {depth}"
+		{...renderCtx.dnd.dropZoneProps}
+	>
+		{#if renderCtx.dnd.enabled}
+			<span class="sidebar-group__drag-handle" {...renderCtx.dnd.handleProps}>⋮⋮</span>
+		{/if}
 		{#if hasHref}
 			<a
 				href={renderCtx.href}

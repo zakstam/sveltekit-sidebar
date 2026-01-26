@@ -3,7 +3,7 @@
 	import { getSidebarContext } from '../context.svelte.js';
 	import SidebarItems from './SidebarItems.svelte';
 
-	let { section, class: className = '' }: SidebarSectionProps<T> = $props();
+	let { section, index = 0, class: className = '' }: SidebarSectionProps<T> = $props();
 
 	const ctx = getSidebarContext<T>();
 
@@ -11,11 +11,13 @@
 	const title = $derived(ctx.getTitle(section));
 	const showTitle = $derived(title && !isCollapsed);
 	const items = $derived(ctx.getItems(section));
-	const renderCtx = $derived(ctx.createRenderContext(section, 0));
+	const sectionId = $derived(ctx.getId(section));
+	// Sections are at root level, so parentId is null
+	const renderCtx = $derived(ctx.createRenderContext(section, 0, null, index));
 </script>
 
 {#snippet childrenSnippet()}
-	<SidebarItems {items} depth={0} />
+	<SidebarItems {items} depth={0} parentId={sectionId} />
 {/snippet}
 
 {#if ctx.snippets?.section}
@@ -26,6 +28,6 @@
 			<h3 class="sidebar-section__title">{title}</h3>
 		{/if}
 
-		<SidebarItems {items} depth={0} />
+		<SidebarItems {items} depth={0} parentId={sectionId} />
 	</section>
 {/if}

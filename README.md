@@ -7,7 +7,8 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 ## Features
 
 - **Schema System** - Use your own data types without transformation
-- **Render Snippets** - Full control over item rendering (drag-drop, edit mode, etc.)
+- **Render Snippets** - Full control over item rendering
+- **Drag and Drop** - Built-in reordering with HTML5 Drag API
 - **Type-safe** - Full TypeScript support with generics
 - **Infinitely nestable** - Groups can contain other groups, to any depth
 - **Collapsible** - Sidebar and groups can be expanded/collapsed
@@ -159,6 +160,23 @@ interface SidebarRenderContext<T = unknown> {
   meta: Record<string, unknown>;   // From schema.getMeta()
   original: T;                     // Your original data item
   toggleExpanded?: () => void;     // Toggle group (groups only)
+  dnd: SidebarDnDState;            // Drag-and-drop state and handlers
+}
+
+interface SidebarDnDState {
+  enabled: boolean;                // DnD is active (draggable prop is true)
+  isDragging: boolean;             // This item is being dragged
+  isDropTarget: boolean;           // Drop indicator showing on this item
+  handleProps: {                   // Spread on drag handle element
+    draggable: boolean;
+    ondragstart: (e: DragEvent) => void;
+    ondragend: (e: DragEvent) => void;
+  };
+  dropZoneProps: {                 // Spread on drop zone element
+    ondragover: (e: DragEvent) => void;
+    ondragleave: (e: DragEvent) => void;
+    ondrop: (e: DragEvent) => void;
+  };
 }
 ```
 
@@ -241,12 +259,25 @@ interface SidebarProps<T = SidebarItem | SidebarSection> {
   group?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
   section?: Snippet<[item: T, ctx: SidebarRenderContext<T>, children: Snippet]>;
 
+  // Drag and drop
+  draggable?: boolean;             // Enable drag-and-drop reordering
+  onReorder?: (event: SidebarReorderEvent<T>) => void;
+
   // Common
   events?: SidebarEvents;
   class?: string;
   header?: Snippet;
   footer?: Snippet;
   children?: Snippet;
+}
+
+interface SidebarReorderEvent<T = unknown> {
+  item: T;                         // The item that was moved
+  fromIndex: number;               // Original index in parent
+  toIndex: number;                 // New index in target parent
+  fromParentId: string | null;     // Source parent ID (null = root)
+  toParentId: string | null;       // Target parent ID (null = root)
+  depth: number;                   // Target nesting depth
 }
 ```
 
@@ -568,6 +599,167 @@ Groups can have an optional `href` making them both a link and expandable:
 
 ---
 
+## Drag and Drop
+
+Enable built-in drag-and-drop reordering with the `draggable` prop:
+
+### Basic Usage
+
+```svelte
+<script lang="ts">
+  import { Sidebar, reorderItems, type SidebarReorderEvent } from 'sveltekit-sidebar';
+
+  let navigation = $state([...]);
+
+  function handleReorder(event: SidebarReorderEvent<NavItem>) {
+    navigation = reorderItems(navigation, event, {
+      getId: (item) => item.id,
+      getItems: (item) => item.children,
+      setItems: (item, children) => ({ ...item, children })
+    });
+  }
+</script>
+
+<Sidebar
+  data={navigation}
+  {schema}
+  draggable={true}
+  onReorder={handleReorder}
+/>
+```
+
+### Edit Mode Toggle
+
+```svelte
+<script lang="ts">
+  let editMode = $state(false);
+</script>
+
+<Sidebar data={navigation} {schema} draggable={editMode} onReorder={handleReorder}>
+  {#snippet header()}
+    <label>
+      <input type="checkbox" bind:checked={editMode} />
+      Edit Mode
+    </label>
+  {/snippet}
+</Sidebar>
+```
+
+### Custom Drag Handle with Snippets
+
+When using custom snippets, use `ctx.dnd` to wire up drag-and-drop:
+
+```svelte
+<Sidebar data={navigation} {schema} draggable={editMode} onReorder={handleReorder}>
+  {#snippet page(item, ctx)}
+    <li
+      class="page"
+      class:dragging={ctx.dnd.isDragging}
+      class:drop-target={ctx.dnd.isDropTarget}
+      {...ctx.dnd.dropZoneProps}
+    >
+      <div class="page-row">
+        {#if ctx.dnd.enabled}
+          <span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
+        {/if}
+        <a href={ctx.href}>{ctx.label}</a>
+      </div>
+    </li>
+  {/snippet}
+
+  {#snippet group(item, ctx, children)}
+    <li
+      class="group"
+      class:dragging={ctx.dnd.isDragging}
+      class:drop-target={ctx.dnd.isDropTarget}
+      {...ctx.dnd.dropZoneProps}
+    >
+      <div class="group-row">
+        {#if ctx.dnd.enabled}
+          <span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
+        {/if}
+        <button onclick={ctx.toggleExpanded}>
+          {ctx.label} {ctx.isExpanded ? '▾' : '▸'}
+        </button>
+      </div>
+      {#if ctx.isExpanded}
+        <ul>{@render children()}</ul>
+      {/if}
+    </li>
+  {/snippet}
+</Sidebar>
+
+<style>
+  .drag-handle {
+    cursor: grab;
+    color: #999;
+  }
+  .dragging {
+    opacity: 0.5;
+  }
+  .drop-target {
+    background: hsl(220 90% 95%);
+    outline: 2px dashed hsl(220 90% 50%);
+  }
+</style>
+```
+
+### Important: Drag Handle Placement
+
+Place drag handles **outside** of `<button>` and `<a>` elements for reliable drag events:
+
+```svelte
+<!-- ✓ Correct: drag handle is sibling of button -->
+<div class="row">
+  <span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
+  <button onclick={ctx.toggleExpanded}>{ctx.label}</button>
+</div>
+
+<!-- ✗ Incorrect: drag handle inside button -->
+<button onclick={ctx.toggleExpanded}>
+  <span class="drag-handle" {...ctx.dnd.handleProps}>⋮⋮</span>
+  {ctx.label}
+</button>
+```
+
+### reorderItems Helper
+
+The `reorderItems` utility handles the tree manipulation for you:
+
+```typescript
+import { reorderItems } from 'sveltekit-sidebar';
+
+function handleReorder(event: SidebarReorderEvent<NavItem>) {
+  navigation = reorderItems(navigation, event, {
+    getId: (item) => item.id,           // Get unique identifier
+    getItems: (item) => item.children,  // Get child items
+    setItems: (item, children) => ({    // Create item with new children
+      ...item,
+      children
+    })
+  });
+}
+```
+
+### Drop Restrictions
+
+Built-in validation prevents invalid drops:
+
+- **Sections** can only be dropped next to other sections (root level)
+- **Pages and groups** cannot be dropped at root level (must stay within sections)
+- **Items** cannot be dropped into themselves or their descendants
+
+### Limitations
+
+The built-in DnD uses HTML5 Drag API and is intentionally simple. For advanced needs:
+
+- Touch device optimization → use external library like `svelte-dnd-action`
+- Keyboard-based reordering → implement custom handlers
+- Animated transitions → add CSS transitions to your snippets
+- Drag preview customization → use external library
+
+---
+
 ## CSS Customization
 
 Import the default styles and override CSS custom properties:
@@ -625,7 +817,8 @@ import {
   getAllGroupIds,
   countItems,
   getItemDepth,
-  isDescendantOf
+  isDescendantOf,
+  reorderItems
 } from 'sveltekit-sidebar';
 
 // Get all pages (useful for sitemaps)
@@ -651,6 +844,13 @@ const depth = getItemDepth(config, 'nested-item');
 
 // Check if item is descendant of another
 const isChild = isDescendantOf(config, 'child-id', 'parent-id');
+
+// Reorder items after drag-and-drop (see Drag and Drop section)
+const newData = reorderItems(data, reorderEvent, {
+  getId: (item) => item.id,
+  getItems: (item) => item.children,
+  setItems: (item, children) => ({ ...item, children })
+});
 ```
 
 ### Builder API
@@ -740,7 +940,9 @@ export type {
   SidebarIconType,
   SidebarPageData,
   SidebarGroupData,
-  SidebarSectionData
+  SidebarSectionData,
+  SidebarReorderEvent,
+  SidebarDnDState
 } from 'sveltekit-sidebar';
 
 // Type Guards
@@ -755,7 +957,8 @@ export {
   getAllGroupIds,
   countItems,
   getItemDepth,
-  isDescendantOf
+  isDescendantOf,
+  reorderItems
 } from 'sveltekit-sidebar';
 
 // Builder
