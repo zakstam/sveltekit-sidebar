@@ -215,6 +215,9 @@ export class SidebarContext<T = unknown> {
 	#hoverExpandTimerId: ReturnType<typeof setTimeout> | null = null;
 	#hoverExpandTargetId: string | null = null;
 
+	// Preview debounce state
+	#previewDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
 	// FLIP animation state
 	#itemPositions = new Map<string, DOMRect>();
 	#isAnimating = false;
@@ -767,27 +770,13 @@ export class SidebarContext<T = unknown> {
 					e.stopPropagation();
 					this.setDropTarget(item, parentId, e);
 				},
-				ondragleave: (e: DragEvent) => {
-					// Only clear if we're actually leaving this element (not entering a child or another drop zone)
-					const relatedTarget = e.relatedTarget as Node | null;
-					const currentTarget = e.currentTarget as Node | null;
-
-					// Check if moving to a child element
-					if (relatedTarget && currentTarget?.contains(relatedTarget)) {
-						return;
-					}
-
-					// Check if moving to another drop zone or sidebar element
-					// In this case, let the new drop zone's ondragover handle setting the target
-					const relatedElement = relatedTarget as HTMLElement | null;
-					if (relatedElement?.closest?.('[data-sidebar-item-id]') ||
-						relatedElement?.closest?.('.sidebar-items') ||
-						relatedElement?.closest?.('.sidebar-content')) {
-						return;
-					}
-
-					if (this.dropTargetId === id) {
-						this.setDropTarget(null);
+				ondragleave: () => {
+					// Don't clear dropTargetId here. During live preview, Svelte may
+					// reorder DOM elements which triggers spurious ondragleave events
+					// (the element moved, not the cursor). The container-level ondragleave
+					// handles the case where the cursor actually leaves the sidebar.
+					// The next ondragover (on an item or the container) will update the target.
+					if (this.#hoverExpandTargetId === id) {
 						this.cancelHoverExpandTimer();
 					}
 				},
@@ -952,6 +941,12 @@ export class SidebarContext<T = unknown> {
 	 * @param animate - Whether to animate items back if preview was active
 	 */
 	endDrag(animate: boolean = false): void {
+		// Clear any pending preview debounce (don't flush — we're ending the drag)
+		if (this.#previewDebounceTimer !== null) {
+			clearTimeout(this.#previewDebounceTimer);
+			this.#previewDebounceTimer = null;
+		}
+
 		// Capture positions if we need to animate back (respects animated flag)
 		const shouldAnimate = animate && this.animated && this.previewInsert;
 		if (shouldAnimate) {
@@ -974,29 +969,16 @@ export class SidebarContext<T = unknown> {
 	/**
 	 * Calculate drop position based on mouse Y coordinate relative to element
 	 */
-	calculateDropPosition(e: DragEvent | PointerEvent, targetKind: ItemKind): DropPosition {
+	calculateDropPosition(
+		e: DragEvent | PointerEvent,
+		targetKind: ItemKind,
+		currentPosition?: DropPosition | null
+	): DropPosition {
 		const target = e.currentTarget as HTMLElement;
 		if (!target) return 'inside';
 
 		const rect = target.getBoundingClientRect();
-		const mouseY = e.clientY;
-		const relativeY = mouseY - rect.top;
-		const height = rect.height;
-
-		// For groups/sections, divide into thirds: before (top 25%), inside (middle 50%), after (bottom 25%)
-		// For pages, divide into halves: before (top 50%), after (bottom 50%)
-		if (targetKind === 'group' || targetKind === 'section') {
-			if (relativeY < height * 0.25) {
-				return 'before';
-			} else if (relativeY > height * 0.75) {
-				return 'after';
-			} else {
-				return 'inside';
-			}
-		} else {
-			// Pages can't have children, so only before/after
-			return relativeY < height * 0.5 ? 'before' : 'after';
-		}
+		return this.calculateDropPositionFromRect(e.clientY, rect, targetKind, currentPosition);
 	}
 
 	/**
@@ -1017,8 +999,9 @@ export class SidebarContext<T = unknown> {
 		const targetId = this.getId(targetItem);
 		const targetKind = this.getKind(targetItem);
 
-		// Calculate drop position from event
-		const position = event ? this.calculateDropPosition(event, targetKind) : 'inside';
+		// Calculate drop position from event, passing current position for hysteresis
+		const currentPos = this.dropTargetId === targetId ? this.dropPosition : null;
+		const position = event ? this.calculateDropPosition(event, targetKind, currentPos) : 'inside';
 
 		this.setDropTargetInternal(targetItem, targetParentId ?? null, targetId, targetKind, position);
 	}
@@ -1035,8 +1018,9 @@ export class SidebarContext<T = unknown> {
 		const targetId = this.getId(targetItem);
 		const targetKind = this.getKind(targetItem);
 
-		// Calculate drop position from clientY and rect
-		const position = this.calculateDropPositionFromRect(clientY, rect, targetKind);
+		// Calculate drop position from clientY and rect, passing current position for hysteresis
+		const currentPos = this.dropTargetId === targetId ? this.dropPosition : null;
+		const position = this.calculateDropPositionFromRect(clientY, rect, targetKind, currentPos);
 
 		this.setDropTargetInternal(targetItem, targetParentId, targetId, targetKind, position);
 	}
@@ -1047,21 +1031,43 @@ export class SidebarContext<T = unknown> {
 	private calculateDropPositionFromRect(
 		clientY: number,
 		rect: DOMRect,
-		targetKind: ItemKind
+		targetKind: ItemKind,
+		currentPosition?: DropPosition | null
 	): DropPosition {
 		const relativeY = clientY - rect.top;
 		const height = rect.height;
+		const ratio = relativeY / height;
+
+		// Hysteresis buffer: when a position is already set, require the cursor to move
+		// further past the boundary before switching. This prevents flickering at edges.
+		const HYSTERESIS = 0.08;
 
 		if (targetKind === 'group' || targetKind === 'section') {
-			if (relativeY < height * 0.25) {
-				return 'before';
-			} else if (relativeY > height * 0.75) {
-				return 'after';
-			} else {
+			// Nominal boundaries: before < 0.25, inside 0.25-0.75, after > 0.75
+			if (currentPosition === 'before') {
+				// Stay "before" until cursor passes 0.25 + buffer
+				return ratio < 0.25 + HYSTERESIS ? 'before' : ratio > 0.75 ? 'after' : 'inside';
+			} else if (currentPosition === 'after') {
+				// Stay "after" until cursor passes 0.75 - buffer
+				return ratio > 0.75 - HYSTERESIS ? 'after' : ratio < 0.25 ? 'before' : 'inside';
+			} else if (currentPosition === 'inside') {
+				// Stay "inside" until cursor passes boundaries - buffer
+				if (ratio < 0.25 - HYSTERESIS) return 'before';
+				if (ratio > 0.75 + HYSTERESIS) return 'after';
 				return 'inside';
 			}
+			// No current position — use nominal boundaries
+			if (ratio < 0.25) return 'before';
+			if (ratio > 0.75) return 'after';
+			return 'inside';
 		} else {
-			return relativeY < height * 0.5 ? 'before' : 'after';
+			// Pages: before/after at 0.5 boundary
+			if (currentPosition === 'before') {
+				return ratio < 0.5 + HYSTERESIS ? 'before' : 'after';
+			} else if (currentPosition === 'after') {
+				return ratio > 0.5 - HYSTERESIS ? 'after' : 'before';
+			}
+			return ratio < 0.5 ? 'before' : 'after';
 		}
 	}
 
@@ -1122,8 +1128,8 @@ export class SidebarContext<T = unknown> {
 			this.dropTargetId = targetId;
 			this.dropPosition = position;
 
-			// Update live preview
-			this.updatePreviewInsert();
+			// Update live preview (debounced to avoid layout thrashing)
+			this.schedulePreviewUpdate();
 		}
 	}
 
@@ -1140,27 +1146,31 @@ export class SidebarContext<T = unknown> {
 			return;
 		}
 
-		let toParentId: string | null;
-		let toIndex: number;
 		const position = this.dropPosition ?? 'inside';
 
-		// Use previewInsert if available (livePreview mode)
-		if (this.previewInsert) {
-			toParentId = this.previewInsert.parentId;
-			toIndex = this.previewInsert.index;
-		} else if (this.dropTargetId && this.dropPosition) {
-			// Calculate position from dropTarget (non-livePreview mode)
-			const calculated = this.calculateInsertPosition(this.dropTargetId, this.dropPosition);
-			if (!calculated) {
+		// If live preview is enabled and we have a preview position, use it.
+		// This ensures WYSIWYG behavior - we drop exactly where the user sees the item
+		// even if the mouse has moved slightly or the preview debouncing/animation caused a lag.
+		let calculated: { parentId: string | null; index: number } | null = null;
+
+		if (this.livePreview && this.previewInsert) {
+			calculated = this.previewInsert;
+		} else {
+			// Fallback to calculation from current drop target
+			// Always calculate the insert position from dropTargetId/dropPosition,
+			// which are the authoritative source of truth (updated synchronously).
+			if (!this.dropTargetId || !this.dropPosition) {
 				this.endDrag();
 				return;
 			}
-			toParentId = calculated.parentId;
-			toIndex = calculated.index;
-		} else {
+			calculated = this.calculateInsertPosition(this.dropTargetId, this.dropPosition);
+		}
+
+		if (!calculated) {
 			this.endDrag();
 			return;
 		}
+		const { parentId: toParentId, index: toIndex } = calculated;
 
 		// Calculate depth based on parent
 		const toDepth = this.calculateDepth(toParentId);
@@ -1425,6 +1435,32 @@ export class SidebarContext<T = unknown> {
 					this.animateItemPositions();
 				});
 			}
+		}
+	}
+
+	/**
+	 * Schedule a debounced preview update.
+	 * Drop target/position state updates immediately (for CSS indicators),
+	 * but DOM-shuffling preview is delayed to avoid layout thrashing feedback loops.
+	 */
+	private schedulePreviewUpdate(): void {
+		if (this.#previewDebounceTimer !== null) {
+			clearTimeout(this.#previewDebounceTimer);
+		}
+		this.#previewDebounceTimer = setTimeout(() => {
+			this.#previewDebounceTimer = null;
+			this.updatePreviewInsert();
+		}, 60);
+	}
+
+	/**
+	 * Cancel any pending preview debounce timer and flush the update if needed.
+	 */
+	private flushPreviewDebounce(): void {
+		if (this.#previewDebounceTimer !== null) {
+			clearTimeout(this.#previewDebounceTimer);
+			this.#previewDebounceTimer = null;
+			this.updatePreviewInsert();
 		}
 	}
 
@@ -1868,7 +1904,8 @@ export class SidebarContext<T = unknown> {
 		const dropZones = container.querySelectorAll('[data-sidebar-item-id]');
 		dropZones.forEach((element) => {
 			const id = element.getAttribute('data-sidebar-item-id');
-			if (id && id !== this.pointerDragState?.id) {
+			const draggedId = this.pointerDragState?.id ?? this.draggedItem?.id;
+			if (id && id !== draggedId) {
 				this.#dropZoneRects.push({
 					id,
 					rect: element.getBoundingClientRect(),
@@ -2067,6 +2104,111 @@ export class SidebarContext<T = unknown> {
 	}
 
 	// ========================================================================
+	// Container-level Drag Handlers (gap fallback)
+	// ========================================================================
+
+	/**
+	 * Find the nearest drop zone by vertical distance when the cursor is in a gap.
+	 * Returns the closest item above or below the cursor position.
+	 */
+	private findNearestDropZone(
+		_x: number,
+		y: number
+	): { id: string; element: HTMLElement; rect: DOMRect } | null {
+		let bestMatch: { id: string; element: HTMLElement; rect: DOMRect; distance: number } | null =
+			null;
+
+		for (const { id, rect, element } of this.#dropZoneRects) {
+			// Vertical distance: 0 if cursor is within the rect's Y range, otherwise distance to nearest edge
+			const distance =
+				y < rect.top ? rect.top - y : y > rect.bottom ? y - rect.bottom : 0;
+
+			if (!bestMatch || distance < bestMatch.distance) {
+				bestMatch = { id, element, rect, distance };
+			}
+		}
+
+		return bestMatch ? { id: bestMatch.id, element: bestMatch.element, rect: bestMatch.rect } : null;
+	}
+
+	/**
+	 * Get event handlers for the scroll container to catch drag events in gaps between items.
+	 * Per-item ondragover uses e.stopPropagation(), so these only fire when the cursor
+	 * is NOT over an item (i.e., in a gap).
+	 */
+	getContainerDragHandlers(): {
+		ondragover: (e: DragEvent) => void;
+		ondragleave: (e: DragEvent) => void;
+		ondrop: (e: DragEvent) => void;
+	} {
+		return {
+			ondragover: (e: DragEvent) => {
+				if (!this.draggedItem) return;
+
+				e.preventDefault();
+
+				// Cache rects periodically
+				const now = Date.now();
+				if (now - this.#lastRectCacheTime > this.rectCacheInterval) {
+					this.cacheDropZoneRects();
+					this.#lastRectCacheTime = now;
+				}
+
+				// Try exact hit first, then nearest
+				const exactHit = this.findDropZoneAtPoint(e.clientX, e.clientY);
+				const nearestHit = exactHit ? null : this.findNearestDropZone(e.clientX, e.clientY);
+				const dropZoneId = exactHit?.id ?? nearestHit?.id;
+				const dropZoneElement = exactHit?.element ?? nearestHit?.element;
+
+				if (dropZoneId && dropZoneElement) {
+					const targetItem = this.findItemById(dropZoneId);
+					if (targetItem) {
+						const rect = nearestHit?.rect ?? dropZoneElement.getBoundingClientRect();
+						this.setDropTargetWithRect(
+							targetItem.item,
+							targetItem.parentId,
+							e.clientY,
+							rect
+						);
+					}
+				}
+
+				// Handle auto-scroll
+				this.handleDragAutoScroll(e.clientY);
+			},
+			ondragleave: (e: DragEvent) => {
+				if (!this.draggedItem) return;
+
+				// Only clear if leaving the container entirely
+				const relatedTarget = e.relatedTarget as Node | null;
+				const currentTarget = e.currentTarget as Node | null;
+				if (relatedTarget && currentTarget?.contains(relatedTarget)) {
+					return;
+				}
+
+				this.setDropTarget(null);
+				this.cancelHoverExpandTimer();
+			},
+			ondrop: (e: DragEvent) => {
+				if (!this.draggedItem) return;
+
+				e.preventDefault();
+
+				if (this.dropTargetId && this.dropPosition) {
+					const targetInfo = this.findItemById(this.dropTargetId);
+					if (targetInfo) {
+						const depth = this.calculateDepth(targetInfo.parentId);
+						this.handleDrop(targetInfo.item, targetInfo.parentId, targetInfo.index, depth);
+						return;
+					}
+				}
+
+				this.endDrag(true);
+			}
+		};
+	}
+
+	// ========================================================================
 	// Hover-expand Methods
 	// ========================================================================
 
@@ -2184,12 +2326,20 @@ export class SidebarContext<T = unknown> {
 
 	private getInitialExpandedGroups(): Record<string, boolean> {
 		const expanded: Record<string, boolean> = {};
+		const visitedIds = new Set<string>();
 
 		const processItems = (items: T[]): void => {
 			for (const item of items) {
+				const id = this.getId(item);
+
+				// Prevent infinite recursion on cycles
+				if (visitedIds.has(id)) {
+					continue;
+				}
+				visitedIds.add(id);
+
 				const kind = this.getKind(item);
 				if (kind === 'group') {
-					const id = this.getId(item);
 					if (this.schema.getDefaultExpanded?.(item)) {
 						expanded[id] = true;
 					}
@@ -2197,29 +2347,23 @@ export class SidebarContext<T = unknown> {
 					if (children.length > 0) {
 						processItems(children);
 					}
+				} else if (kind === 'section') {
+					// Also process children of sections
+					const children = this.getItems(item);
+					if (children.length > 0) {
+						processItems(children);
+					}
 				}
+				// Remove from current path (optional, but for DAGs we might want to revisit nodes via other paths?
+				// Actually for a menu structure, usually we treat it as a tree. If a node is visited, we probably don't need to process it again for default expansion anyway.)
+				// However, if we want to support DAG (sharing subtrees), we should only check visited for CYCLES (current recursion stack).
+				// But to be safe and simple: if we saw it, we processed its default state. Re-processing it won't change the result for a map.
+				// So global visited set is fine and safer.
 			}
 		};
 
-		for (const rootItem of this.data) {
-			const kind = this.getKind(rootItem);
-			if (kind === 'section') {
-				// Process items inside sections
-				const items = this.getItems(rootItem);
-				processItems(items);
-			} else if (kind === 'group') {
-				// Root-level group: check its defaultExpanded and process children
-				const id = this.getId(rootItem);
-				if (this.schema.getDefaultExpanded?.(rootItem)) {
-					expanded[id] = true;
-				}
-				const children = this.getItems(rootItem);
-				if (children.length > 0) {
-					processItems(children);
-				}
-			}
-			// Root-level pages have no children to process
-		}
+		// We need to handle the root items specifically as they might be sections or groups
+		processItems(this.data);
 
 		return expanded;
 	}

@@ -209,6 +209,9 @@
 	// Scroll container binding for auto-scroll during drag
 	let scrollContainer: HTMLElement;
 
+	// Container-level drag handlers for gap fallback
+	const containerDragHandlers = ctx.getContainerDragHandlers();
+
 	$effect(() => {
 		if (scrollContainer) {
 			ctx.setScrollContainer(scrollContainer);
@@ -306,7 +309,14 @@
 		</div>
 	{/if}
 
-	<div class="sidebar__body" bind:this={scrollContainer}>
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="sidebar__body"
+		bind:this={scrollContainer}
+		ondragover={containerDragHandlers.ondragover}
+		ondragleave={containerDragHandlers.ondragleave}
+		ondrop={containerDragHandlers.ondrop}
+	>
 		{#if children}
 			{@render children()}
 		{:else}
