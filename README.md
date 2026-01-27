@@ -28,7 +28,29 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 ## Installation
 
 ```bash
-npm install github:zakstam/sveltekit-sidebar
+# npm
+npm install git+https://github.com/zakstam/sveltekit-sidebar.git
+
+# pnpm
+pnpm add git+https://github.com/zakstam/sveltekit-sidebar.git
+
+# yarn
+yarn add git+https://github.com/zakstam/sveltekit-sidebar.git
+```
+
+## Updating
+
+When installing from GitHub, update by reinstalling the same Git URL (or bump the tag/branch in the URL).
+
+```bash
+# npm
+npm install git+https://github.com/zakstam/sveltekit-sidebar.git
+
+# pnpm
+pnpm add git+https://github.com/zakstam/sveltekit-sidebar.git
+
+# yarn
+yarn add git+https://github.com/zakstam/sveltekit-sidebar.git
 ```
 
 ## Repo Structure (Monorepo)

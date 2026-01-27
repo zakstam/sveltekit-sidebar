@@ -8,6 +8,7 @@
     "apps/*"
   ],
   "scripts": {
+    "prepare": "npm --prefix packages/sidebar run package",
     "dev:docs": "pnpm -C apps/docs dev",
     "build:sidebar": "pnpm -C packages/sidebar build",
     "package:sidebar": "pnpm -C packages/sidebar package",
@@ -33,5 +34,23 @@
     "typescript": "^5.0.0",
     "vite": "^6.0.0",
     "vitest": "^4.0.18"
-  }
+  },
+  "exports": {
+    ".": {
+      "types": "./packages/sidebar/dist/index.d.ts",
+      "svelte": "./packages/sidebar/dist/index.js",
+      "import": "./packages/sidebar/dist/index.js",
+      "default": "./packages/sidebar/dist/index.js"
+    },
+    "./styles": {
+      "development": "./packages/sidebar/src/lib/styles/index.ts",
+      "default": "./packages/sidebar/dist/styles/index.js"
+    },
+    "./styles.css": {
+      "development": "./packages/sidebar/src/lib/styles/index.css",
+      "default": "./packages/sidebar/dist/styles/index.css"
+    }
+  },
+  "svelte": "./packages/sidebar/dist/index.js",
+  "types": "./packages/sidebar/dist/index.d.ts"
 }
