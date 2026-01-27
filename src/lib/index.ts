@@ -31,6 +31,7 @@ export type {
 	// Responsive types
 	SidebarResponsiveSettings,
 	SidebarResponsiveMode,
+	SidebarReorderMode,
 	// Customization types
 	SidebarDnDSettings,
 	SidebarKeyboardShortcuts,

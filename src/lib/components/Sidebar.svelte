@@ -7,6 +7,7 @@
 		SidebarSettings,
 		SidebarEvents,
 		SidebarSchema,
+		SidebarReorderMode,
 		SidebarRenderContext,
 		SidebarReorderEvent,
 		DropPosition
@@ -45,6 +46,7 @@
 		// Drag and drop
 		draggable = false,
 		onReorder,
+		reorderMode = 'auto',
 		dragPreview,
 		dropIndicator,
 		livePreview = true,
@@ -77,6 +79,8 @@
 		// Drag and drop
 		draggable?: boolean;
 		onReorder?: (event: SidebarReorderEvent<T>) => void;
+		/** Reorder mode. Defaults to 'auto'. */
+		reorderMode?: SidebarReorderMode;
 		/** Custom drag preview snippet - receives the item being dragged and its render context */
 		dragPreview?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;
 		/** Custom drop indicator snippet. Falls back to built-in faded item preview. */
@@ -153,18 +157,9 @@
 
 		ctx.dndEnabled = draggable;
 		ctx.onReorder = onReorder;
+		ctx.reorderMode = reorderMode;
 		ctx.livePreview = livePreview;
 		ctx.animated = animated;
-	});
-
-	// Sync data prop to context when it changes (for DnD reordering)
-	// We need to access `data` to track it, then always sync to context
-	$effect.pre(() => {
-		// Access data to establish dependency tracking
-		const currentData = data;
-		if (currentData) {
-			ctx.data = currentData;
-		}
 	});
 
 	// Sync drag preview element to context immediately when available
@@ -194,7 +189,7 @@
 			: null
 	);
 
-	// Sync data prop to context - needed for DnD to update UI after reorder
+	// Sync data prop to context when it changes (controlled mode / external updates)
 	$effect.pre(() => {
 		if (data) {
 			ctx.data = data;

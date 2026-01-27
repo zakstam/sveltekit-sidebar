@@ -21,9 +21,11 @@ import type {
 	SidebarDnDSettings,
 	SidebarKeyboardShortcuts,
 	SidebarLabels,
-	SidebarAnnouncements
+	SidebarAnnouncements,
+	SidebarReorderMode
 } from './types.js';
 import { defaultSchema } from './types.js';
+import { reorderItems } from './utils/reorder.js';
 
 const SIDEBAR_CONTEXT_KEY = Symbol('sidebar-context');
 
@@ -188,6 +190,7 @@ export class SidebarContext<T = unknown> {
 	dropTargetId = $state<string | null>(null);
 	dropPosition = $state<DropPosition | null>(null);
 	onReorder?: (event: SidebarReorderEvent<T>) => void;
+	reorderMode = $state<SidebarReorderMode>('auto');
 
 	// Live preview state - where the item would be inserted
 	previewInsert = $state<{
@@ -1136,13 +1139,50 @@ export class SidebarContext<T = unknown> {
 	/**
 	 * Handle drop on a target item
 	 */
+	private getEffectiveReorderMode(): Exclude<SidebarReorderMode, 'auto'> {
+		if (this.reorderMode === 'controlled' || this.reorderMode === 'uncontrolled') {
+			return this.reorderMode;
+		}
+		return this.onReorder ? 'controlled' : 'uncontrolled';
+	}
+
+	private canReorderInternally(): boolean {
+		return !!this.schema.getItems && !!this.schema.setItems;
+	}
+
+	private applyInternalReorder(event: SidebarReorderEvent<T>): boolean {
+		if (!this.canReorderInternally()) {
+			return false;
+		}
+
+		const getItems = this.schema.getItems!;
+		const setItems = this.schema.setItems!;
+
+		this.data = reorderItems(this.data, event, {
+			getId: (item) => this.getId(item),
+			getItems,
+			setItems
+		});
+
+		return true;
+	}
+
 	handleDrop(
 		_targetItem: T,
 		_targetParentId: string | null,
 		_targetIndex: number,
 		_targetDepth: number
 	): void {
-		if (!this.draggedItem || !this.onReorder) {
+		if (!this.draggedItem) {
+			return;
+		}
+		const mode = this.getEffectiveReorderMode();
+		const canInternal = this.canReorderInternally();
+		const hasExternalHandler = !!this.onReorder;
+
+		// Controlled mode requires an external handler. Uncontrolled mode requires schema setters.
+		if (!hasExternalHandler && (mode === 'controlled' || !canInternal)) {
+			this.endDrag(true);
 			return;
 		}
 
@@ -1197,7 +1237,13 @@ export class SidebarContext<T = unknown> {
 			this.captureItemPositions();
 		}
 
-		this.onReorder(reorderEvent);
+		// Uncontrolled mode: apply the reorder internally when possible.
+		if (mode === 'uncontrolled' && canInternal) {
+			this.applyInternalReorder(reorderEvent);
+		}
+
+		// External handler is always notified when provided.
+		this.onReorder?.(reorderEvent);
 
 		// Animate items to new positions (when livePreview is off)
 		if (!this.livePreview) {
@@ -1674,7 +1720,15 @@ export class SidebarContext<T = unknown> {
 	 * Drop the picked up item at its current position
 	 */
 	dropPickedUpItem(depth: number): void {
-		if (!this.keyboardDragState || !this.onReorder) return;
+		if (!this.keyboardDragState) return;
+		const mode = this.getEffectiveReorderMode();
+		const canInternal = this.canReorderInternally();
+		const hasExternalHandler = !!this.onReorder;
+
+		if (!hasExternalHandler && (mode === 'controlled' || !canInternal)) {
+			this.cancelKeyboardDrag();
+			return;
+		}
 
 		const { item, originalParentId, originalIndex, currentIndex, currentParentId } =
 			this.keyboardDragState;
@@ -1706,7 +1760,10 @@ export class SidebarContext<T = unknown> {
 		}
 
 		// Items are already in preview position, so no FLIP animation needed
-		this.onReorder(reorderEvent);
+		if (mode === 'uncontrolled' && canInternal) {
+			this.applyInternalReorder(reorderEvent);
+		}
+		this.onReorder?.(reorderEvent);
 
 		this.announcement = this.formatAnnouncement(this.announcements.dropped, { label });
 

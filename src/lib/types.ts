@@ -466,6 +466,11 @@ export interface SidebarSchema<T = unknown> {
 	getHref?: (item: T) => string | undefined;
 	/** Get child items (for groups and sections) */
 	getItems?: (item: T) => T[] | undefined;
+	/**
+	 * Set child items (for groups and sections).
+	 * Required for uncontrolled drag-and-drop reordering.
+	 */
+	setItems?: (item: T, items: T[]) => T;
 	/** Get icon for the item */
 	getIcon?: (item: T) => SidebarIcon | undefined;
 	/** Get badge value */
@@ -531,6 +536,13 @@ export const defaultSchema: SidebarSchema<SidebarItem | SidebarSection> = {
 	getLabel: (item) => ('label' in item ? item.label : ''),
 	getHref: (item) => ('href' in item ? item.href : undefined),
 	getItems: (item) => ('items' in item ? item.items : undefined),
+	setItems: (item, items) => {
+		if ('items' in item) {
+			// Built-in tree shape only allows SidebarItem children under items.
+			return { ...item, items: items as SidebarItem[] };
+		}
+		return item;
+	},
 	getIcon: (item) => ('icon' in item ? item.icon : undefined),
 	getBadge: (item) => ('badge' in item ? item.badge : undefined),
 	getDisabled: (item) => ('disabled' in item ? item.disabled ?? false : false),
@@ -544,6 +556,14 @@ export const defaultSchema: SidebarSchema<SidebarItem | SidebarSection> = {
 // ============================================================================
 // Component Props Types
 // ============================================================================
+
+/**
+ * Controls how drag-and-drop reordering updates data.
+ * - controlled: never mutates internal data; caller must update `data` in `onReorder`
+ * - uncontrolled: sidebar mutates its internal `data` when possible
+ * - auto: controlled when `onReorder` is provided, otherwise uncontrolled
+ */
+export type SidebarReorderMode = 'auto' | 'controlled' | 'uncontrolled';
 
 /**
  * Props for Sidebar component.
@@ -567,6 +587,11 @@ export interface SidebarProps<T = SidebarItem | SidebarSection> {
 	draggable?: boolean;
 	/** Callback fired when an item is reordered via drag-and-drop */
 	onReorder?: (event: SidebarReorderEvent<T>) => void;
+	/**
+	 * Reorder mode. Defaults to 'auto'.
+	 * In uncontrolled mode, `schema.getItems` and `schema.setItems` must be provided.
+	 */
+	reorderMode?: SidebarReorderMode;
 	/** Enable smooth animations when items reorder (default: true) */
 	animated?: boolean;
 	/**
