@@ -8,8 +8,8 @@
     "apps/*"
   ],
   "scripts": {
-    "prepare": "npm --prefix packages/sidebar run package",
     "dev:docs": "pnpm -C apps/docs dev",
+    "preview:docs": "pnpm -C apps/docs preview",
     "build:sidebar": "pnpm -C packages/sidebar build",
     "package:sidebar": "pnpm -C packages/sidebar package",
     "check:sidebar": "pnpm -C packages/sidebar check",
