@@ -12,14 +12,14 @@
 
 	// Get root items with live preview support for DnD
 	const rootItems = $derived(ctx.getItemsWithPreview(ctx.data, null));
+	const dropIndicator = $derived(ctx.snippets?.dropIndicator);
+	const draggedLabel = $derived(ctx.draggedItem ? ctx.getLabel(ctx.draggedItem.item) : '');
 </script>
 
 <nav class="sidebar-content {className}" aria-label={ctx.labels.navigation.main}>
 	{#each rootItems as item, index (ctx.getId(item))}
 		{@const kind = ctx.getKind(item)}
 		{@const isPreview = ctx.isPreviewItem(ctx.getId(item))}
-		{@const dropIndicator = ctx.snippets?.dropIndicator}
-		{@const draggedLabel = ctx.draggedItem ? ctx.getLabel(ctx.draggedItem.item) : ''}
 		{#if isPreview && dropIndicator}
 			<!-- Custom drop indicator instead of faded preview -->
 			<div class="sidebar-drop-indicator-wrapper">

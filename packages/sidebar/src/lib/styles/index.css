@@ -23,6 +23,27 @@
 	z-index: var(--sidebar-z-index);
 }
 
+/* Prevent layout shifts during initial hydration */
+.sidebar:not([data-hydrated]) {
+	transition: none;
+}
+
+html:not([data-hydrated]) .sidebar,
+html:not([data-hydrated]) .sidebar--mode-mobile,
+html:not([data-hydrated]) .sidebar-backdrop,
+html:not([data-hydrated]) .sidebar-trigger,
+html:not([data-hydrated]) .sidebar-mobile-trigger {
+	transition: none;
+}
+
+html:not([data-hydrated]) .sidebar-page__label,
+html:not([data-hydrated]) .sidebar-group__label,
+html:not([data-hydrated]) .sidebar-page__badge,
+html:not([data-hydrated]) .sidebar-group__badge,
+html:not([data-hydrated]) .sidebar-group__content {
+	transition: none;
+}
+
 .sidebar--collapsed {
 	width: var(--sidebar-width-collapsed);
 	overflow: visible;
@@ -49,18 +70,24 @@
 	margin-left: 0;
 }
 
-/* Hide labels and badges in collapsed mode for ALL depths */
+/* Fade and collapse labels/badges in collapsed mode for ALL depths */
 .sidebar--collapsed .sidebar-page__label,
 .sidebar--collapsed .sidebar-group__label,
 .sidebar--collapsed .sidebar-page__badge,
 .sidebar--collapsed .sidebar-group__badge {
-	display: none;
+	opacity: 0;
+	max-width: 0;
+	margin: 0;
+	padding-left: 0;
+	padding-right: 0;
+	overflow: hidden;
 }
 
 /* Center all items in collapsed mode */
 .sidebar--collapsed .sidebar-page__link,
 .sidebar--collapsed .sidebar-group__trigger {
 	justify-content: center;
+	gap: 0;
 	padding: var(--sidebar-item-padding-y);
 	position: relative;
 }
@@ -267,6 +294,10 @@
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	max-width: 100%;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
 .sidebar-page__badge {
@@ -277,6 +308,11 @@
 	border-radius: 9999px;
 	background: var(--sidebar-badge-bg);
 	color: var(--sidebar-badge-color);
+	max-width: 100%;
+	overflow: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
 .sidebar-page__external {
@@ -352,6 +388,10 @@ a.sidebar-group__trigger {
 	flex: 1;
 	overflow: hidden;
 	text-overflow: ellipsis;
+	max-width: 100%;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
 .sidebar-group__badge {
@@ -362,6 +402,11 @@ a.sidebar-group__trigger {
 	border-radius: 9999px;
 	background: var(--sidebar-badge-bg);
 	color: var(--sidebar-badge-color);
+	max-width: 100%;
+	overflow: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
 .sidebar-group__chevron {
@@ -403,10 +448,21 @@ a.sidebar-group__trigger {
 
 .sidebar-group__content {
 	overflow: hidden;
+	max-height: var(--sidebar-group-max-height, 1000px);
+	opacity: 1;
+	transform: translateY(0);
+	transition:
+		max-height var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
 .sidebar-group__content--hidden {
-	display: none;
+	max-height: 0;
+	opacity: 0;
+	transform: translateY(-2px);
+	visibility: hidden;
+	pointer-events: none;
 }
 
 /* ============================================================================
@@ -682,6 +738,10 @@ a.sidebar-group__trigger {
 		visibility var(--sidebar-animation-duration) var(--sidebar-animation-easing);
 }
 
+.sidebar-backdrop--prehydrate {
+	transition: none;
+}
+
 .sidebar-backdrop--visible {
 	opacity: 1;
 	visibility: visible;
@@ -796,10 +856,23 @@ body.sidebar-scroll-locked {
 		z-index: var(--sidebar-drawer-z-index);
 		transform: translateX(-100%);
 	}
+	.sidebar:not([data-hydrated]) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 100vh;
+		height: 100dvh;
+		width: var(--sidebar-drawer-width);
+		z-index: var(--sidebar-drawer-z-index);
+		transform: translateX(-100%);
+	}
 }
 
 @media (min-width: 768px) and (max-width: 1023px) {
 	.sidebar:not([data-responsive-mode]) {
+		width: var(--sidebar-width-collapsed);
+	}
+	.sidebar:not([data-hydrated]) {
 		width: var(--sidebar-width-collapsed);
 	}
 }

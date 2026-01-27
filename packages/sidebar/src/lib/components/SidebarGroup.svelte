@@ -25,6 +25,7 @@
 	const showAvatar = $derived(isCollapsed && !renderCtx.icon);
 	const isExpanded = $derived(renderCtx.isExpanded ?? false);
 	const hasHref = $derived(!!renderCtx.href);
+	const contentHidden = $derived(isCollapsible && !isExpanded);
 
 	function handleToggle() {
 		if (isCollapsible) {
@@ -171,15 +172,14 @@
 			</button>
 		{/if}
 
-		{#if isExpanded || !isCollapsible}
-			<div
-				class="sidebar-group__content"
-				class:sidebar-group__content--hidden={!isExpanded && isCollapsible}
-			>
-				{#if children}
-					{@render children()}
-				{/if}
-			</div>
-		{/if}
+		<div
+			class="sidebar-group__content"
+			class:sidebar-group__content--hidden={contentHidden}
+			aria-hidden={contentHidden ? 'true' : undefined}
+		>
+			{#if children}
+				{@render children()}
+			{/if}
+		</div>
 	</li>
 {/if}

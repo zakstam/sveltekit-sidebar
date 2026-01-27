@@ -1,6 +1,6 @@
 <script lang="ts" generics="T">
 	import type { Snippet } from 'svelte';
-	import { onDestroy } from 'svelte';
+	import { onDestroy, onMount } from 'svelte';
 	import type {
 		SidebarConfig,
 		SidebarSettings,
@@ -139,6 +139,12 @@
 		ctx.destroy();
 	});
 
+	let hydrated = $state(false);
+	// Avoid initial-load layout shifts by gating transitions until hydration
+	onMount(() => {
+		hydrated = true;
+	});
+
 	// Responsive state derived
 	const responsiveMode = $derived(ctx.responsiveMode);
 	const drawerOpen = $derived(ctx.drawerOpen);
@@ -149,7 +155,7 @@
 	let prevDraggable = false;
 
 	// Drag preview element reference
-	let dragPreviewElement: HTMLElement;
+	let dragPreviewElement = $state<HTMLElement | null>(null);
 
 	// Sync DnD props to context - use $effect.pre to ensure it's set before render
 	$effect.pre(() => {
@@ -281,9 +287,9 @@
 	</div>
 {/if}
 
-{#if isResponsiveEnabled && isMobileMode}
-	<SidebarBackdrop />
-{/if}
+	{#if isResponsiveEnabled && isMobileMode}
+		<SidebarBackdrop class={hydrated ? '' : 'sidebar-backdrop--prehydrate'} />
+	{/if}
 
 <!-- Tooltip element for collapsed mode -->
 <div bind:this={tooltipElement} class="sidebar-tooltip" aria-hidden="true"></div>
@@ -300,6 +306,7 @@
 	style={cssVars}
 	data-collapsed={ctx.isCollapsed}
 	data-responsive-mode={isResponsiveEnabled ? responsiveMode : undefined}
+	data-hydrated={hydrated ? 'true' : undefined}
 	role={isMobileMode && drawerOpen ? 'dialog' : undefined}
 	aria-modal={isMobileMode && drawerOpen ? 'true' : undefined}
 	aria-hidden={isMobileMode && !drawerOpen ? 'true' : undefined}

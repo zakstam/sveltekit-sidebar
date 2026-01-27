@@ -7,6 +7,8 @@
 	let { items, depth = 0, parentId = null }: SidebarItemsProps<T> = $props();
 
 	const ctx = getSidebarContext<T>();
+	const dropIndicator = $derived(ctx.snippets?.dropIndicator);
+	const draggedLabel = $derived(ctx.draggedItem ? ctx.getLabel(ctx.draggedItem.item) : "");
 </script>
 
 <!--
@@ -29,10 +31,6 @@
 			{#if !ancestorIds.has(id)}
 				{@const kind = ctx.getKind(item)}
 				{@const isPreview = ctx.isPreviewItem(id)}
-				{@const dropIndicator = ctx.snippets?.dropIndicator}
-				{@const draggedLabel = ctx.draggedItem
-					? ctx.getLabel(ctx.draggedItem.item)
-					: ""}
 
 				<!-- Create a new set for children to include current ID -->
 				{@const nextAncestorIds = new Set(ancestorIds).add(id)}

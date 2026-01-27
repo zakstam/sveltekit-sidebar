@@ -1,7 +1,7 @@
 <script lang="ts">
-	import { getSidebarContext } from 'sveltekit-sidebar';
+	import { tryGetSidebarContext } from 'sveltekit-sidebar';
 
-	const ctx = getSidebarContext();
+	const ctx = tryGetSidebarContext();
 </script>
 
 <svelte:head>
@@ -27,14 +27,18 @@
 
 	<section class="demo-controls">
 		<h2>Demo Controls</h2>
-		<p>Current state:</p>
-		<ul>
-			<li>Sidebar collapsed: <code>{ctx.isCollapsed}</code></li>
-			<li>Sidebar width: <code>{ctx.width}</code></li>
-		</ul>
-		<button onclick={() => ctx.toggleCollapsed()}>
-			{ctx.isCollapsed ? 'Expand' : 'Collapse'} Sidebar
-		</button>
+		{#if ctx}
+			<p>Current state:</p>
+			<ul>
+				<li>Sidebar collapsed: <code>{ctx.isCollapsed}</code></li>
+				<li>Sidebar width: <code>{ctx.width}</code></li>
+			</ul>
+			<button onclick={() => ctx.toggleCollapsed()}>
+				{ctx.isCollapsed ? 'Expand' : 'Collapse'} Sidebar
+			</button>
+		{:else}
+			<p>Sidebar context is not available on this page.</p>
+		{/if}
 	</section>
 
 	<section class="installation">

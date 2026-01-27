@@ -2,11 +2,23 @@
 	import { Sidebar } from 'sveltekit-sidebar';
 	import '$lib/sidebar-styles';
 	import { sidebarConfig } from './sidebar-config.js';
+	import { onDestroy, onMount } from 'svelte';
 
 	let { children } = $props();
+	let hydrated = $state(false);
+
+	onMount(() => {
+		hydrated = true;
+		if (typeof document !== 'undefined') {
+			document.documentElement.dataset.hydrated = 'true';
+		}
+		return () => {
+			delete document?.documentElement.dataset.hydrated;
+		};
+	});
 </script>
 
-<div class="layout">
+<div class="layout" data-hydrated={hydrated ? 'true' : undefined}>
 	<Sidebar
 		config={sidebarConfig}
 		events={{
@@ -78,21 +90,36 @@
 		font-size: 16px;
 	}
 
+	.logo__text {
+		max-width: 200px;
+		overflow: hidden;
+		transition:
+			opacity 200ms ease,
+			max-width 200ms ease;
+	}
+
 	.logo__icon {
 		font-size: 24px;
 	}
 
 	:global(.sidebar--collapsed) .logo__text {
-		display: none;
+		opacity: 0;
+		max-width: 0;
 	}
 
 	.footer-info {
 		font-size: 12px;
 		color: hsl(0 0% 50%);
 		text-align: center;
+		max-height: 24px;
+		overflow: hidden;
+		transition:
+			opacity 200ms ease,
+			max-height 200ms ease;
 	}
 
 	:global(.sidebar--collapsed) .footer-info {
-		display: none;
+		opacity: 0;
+		max-height: 0;
 	}
 </style>
