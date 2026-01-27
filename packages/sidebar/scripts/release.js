@@ -103,7 +103,7 @@ log(`Version: ${oldVersion} → ${newVersion}`, 'green');
 
 // Step 5: Commit and tag
 log('\nCommitting and tagging...', 'yellow');
-run('git', ['add', 'packages/sidebar/package.json']);
+run('git', ['add', 'packages/sidebar/package.json', 'packages/sidebar/dist']);
 run('git', ['commit', '-m', `release: v${newVersion}`]);
 run('git', ['tag', `v${newVersion}`]);
 

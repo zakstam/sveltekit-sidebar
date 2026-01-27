@@ -1,0 +1,895 @@
+/* ============================================================================
+   Sidebar Component Styles
+   ============================================================================ */
+
+@import './variables.css';
+
+/* ============================================================================
+   Base Sidebar Container
+   ============================================================================ */
+
+.sidebar {
+	display: flex;
+	flex-direction: column;
+	width: var(--sidebar-width, var(--sidebar-width-expanded));
+	height: 100%;
+	background: var(--sidebar-bg);
+	border-right: 1px solid var(--sidebar-border-color);
+	font-size: var(--sidebar-font-size);
+	line-height: var(--sidebar-line-height);
+	transition: width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	overflow: hidden;
+	position: relative;
+	z-index: var(--sidebar-z-index);
+}
+
+/* Prevent layout shifts during initial hydration */
+.sidebar:not([data-hydrated]) {
+	transition: none;
+}
+
+html:not([data-hydrated]) .sidebar,
+html:not([data-hydrated]) .sidebar--mode-mobile,
+html:not([data-hydrated]) .sidebar-backdrop,
+html:not([data-hydrated]) .sidebar-trigger,
+html:not([data-hydrated]) .sidebar-mobile-trigger {
+	transition: none;
+}
+
+html:not([data-hydrated]) .sidebar-page__label,
+html:not([data-hydrated]) .sidebar-group__label,
+html:not([data-hydrated]) .sidebar-page__badge,
+html:not([data-hydrated]) .sidebar-group__badge,
+html:not([data-hydrated]) .sidebar-group__content {
+	transition: none;
+}
+
+.sidebar--collapsed {
+	width: var(--sidebar-width-collapsed);
+	overflow: visible;
+}
+
+/* ============================================================================
+   Collapsed Mode Styles
+   ============================================================================ */
+
+/* Allow tooltip overflow in collapsed mode */
+.sidebar--collapsed .sidebar__body {
+	overflow: visible;
+}
+
+.sidebar--collapsed .sidebar-items,
+.sidebar--collapsed .sidebar-section,
+.sidebar--collapsed .sidebar-content,
+.sidebar--collapsed .sidebar-group__content {
+	overflow: visible;
+}
+
+/* Remove indentation in collapsed mode */
+.sidebar--collapsed .sidebar-items--nested {
+	margin-left: 0;
+}
+
+/* Fade and collapse labels/badges in collapsed mode for ALL depths */
+.sidebar--collapsed .sidebar-page__label,
+.sidebar--collapsed .sidebar-group__label,
+.sidebar--collapsed .sidebar-page__badge,
+.sidebar--collapsed .sidebar-group__badge {
+	opacity: 0;
+	max-width: 0;
+	margin: 0;
+	padding-left: 0;
+	padding-right: 0;
+	overflow: hidden;
+}
+
+/* Center all items in collapsed mode */
+.sidebar--collapsed .sidebar-page__link,
+.sidebar--collapsed .sidebar-group__trigger {
+	justify-content: center;
+	gap: 0;
+	padding: var(--sidebar-item-padding-y);
+	position: relative;
+}
+
+/* Subtle distinction for nested items */
+.sidebar--collapsed .sidebar-items--nested .sidebar-page__link,
+.sidebar--collapsed .sidebar-items--nested .sidebar-group__trigger {
+	opacity: 0.85;
+}
+
+/* Hide chevrons in collapsed mode */
+.sidebar--collapsed .sidebar-group__chevron,
+.sidebar--collapsed .sidebar-group__chevron-btn {
+	display: none;
+}
+
+/* Hide external link indicator in collapsed mode */
+.sidebar--collapsed .sidebar-page__external {
+	display: none;
+}
+
+/* Avatar styles for items without icons */
+.sidebar-avatar {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--sidebar-avatar-size);
+	height: var(--sidebar-avatar-size);
+	border-radius: 50%;
+	background: var(--sidebar-avatar-bg);
+	color: var(--sidebar-avatar-color);
+	font-size: var(--sidebar-avatar-font-size);
+	font-weight: var(--sidebar-avatar-font-weight);
+	text-transform: uppercase;
+	flex-shrink: 0;
+}
+
+/* Sidebar tooltip element (created by JS) */
+.sidebar-tooltip {
+	position: fixed;
+	padding: 6px 12px;
+	background: var(--sidebar-tooltip-bg);
+	color: var(--sidebar-tooltip-color);
+	font-size: var(--sidebar-font-size-small);
+	font-weight: 500;
+	border-radius: var(--sidebar-border-radius);
+	white-space: nowrap;
+	pointer-events: none;
+	z-index: 9999;
+	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+	opacity: 0;
+	transition: opacity 150ms ease;
+}
+
+.sidebar-tooltip--visible {
+	opacity: 1;
+}
+
+/* ============================================================================
+   Sidebar Header
+   ============================================================================ */
+
+.sidebar__header {
+	flex-shrink: 0;
+	padding: var(--sidebar-padding);
+	border-bottom: 1px solid var(--sidebar-border-color);
+}
+
+/* ============================================================================
+   Sidebar Body (Scrollable Content)
+   ============================================================================ */
+
+.sidebar__body {
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	padding: var(--sidebar-padding);
+}
+
+/* ============================================================================
+   Sidebar Footer
+   ============================================================================ */
+
+.sidebar__footer {
+	flex-shrink: 0;
+	padding: var(--sidebar-padding);
+	border-top: 1px solid var(--sidebar-border-color);
+}
+
+/* ============================================================================
+   Sidebar Trigger Container
+   ============================================================================ */
+
+.sidebar__trigger-container {
+	position: absolute;
+	bottom: 12px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 1;
+}
+
+/* ============================================================================
+   Sidebar Content (Navigation)
+   ============================================================================ */
+
+.sidebar-content {
+	display: flex;
+	flex-direction: column;
+	gap: var(--sidebar-section-gap);
+}
+
+/* ============================================================================
+   Sidebar Section
+   ============================================================================ */
+
+.sidebar-section {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.sidebar-section__title {
+	margin: 0;
+	padding: var(--sidebar-item-padding-y) var(--sidebar-item-padding-x);
+	font-size: var(--sidebar-section-title-font-size);
+	font-weight: var(--sidebar-section-title-font-weight);
+	letter-spacing: var(--sidebar-section-title-letter-spacing);
+	text-transform: uppercase;
+	color: var(--sidebar-section-title-color);
+}
+
+/* ============================================================================
+   Sidebar Items List
+   ============================================================================ */
+
+.sidebar-items {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.sidebar-items--nested {
+	margin-left: var(--sidebar-nested-indent);
+	margin-top: 2px;
+}
+
+/* ============================================================================
+   Sidebar Page (Navigation Link)
+   ============================================================================ */
+
+.sidebar-page {
+	list-style: none;
+}
+
+.sidebar-page__link {
+	display: flex;
+	align-items: center;
+	gap: var(--sidebar-item-gap);
+	padding: var(--sidebar-item-padding-y) var(--sidebar-item-padding-x);
+	border-radius: var(--sidebar-item-border-radius);
+	background: var(--sidebar-item-bg);
+	color: var(--sidebar-item-color);
+	text-decoration: none;
+	font-weight: var(--sidebar-font-weight);
+	transition:
+		background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		color var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	cursor: pointer;
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.sidebar-page__link:hover:not(.sidebar-page__link--disabled) {
+	background: var(--sidebar-item-bg-hover);
+	color: var(--sidebar-item-color-hover);
+}
+
+.sidebar-page__link--active {
+	background: var(--sidebar-item-bg-active);
+	color: var(--sidebar-item-color-active);
+}
+
+.sidebar-page__link--disabled {
+	color: var(--sidebar-item-color-disabled);
+	cursor: not-allowed;
+	pointer-events: none;
+}
+
+.sidebar-page__link--collapsed {
+	justify-content: center;
+	padding: var(--sidebar-item-padding-y);
+}
+
+.sidebar-page__icon {
+	flex-shrink: 0;
+	width: var(--sidebar-icon-size);
+	height: var(--sidebar-icon-size);
+}
+
+.sidebar-page__label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-page__badge {
+	flex-shrink: 0;
+	padding: 2px 6px;
+	font-size: var(--sidebar-font-size-small);
+	font-weight: 600;
+	border-radius: 9999px;
+	background: var(--sidebar-badge-bg);
+	color: var(--sidebar-badge-color);
+	max-width: 100%;
+	overflow: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-page__external {
+	flex-shrink: 0;
+	font-size: var(--sidebar-font-size-small);
+	opacity: 0.6;
+}
+
+/* ============================================================================
+   Sidebar Group (Collapsible)
+   ============================================================================ */
+
+.sidebar-group {
+	list-style: none;
+}
+
+.sidebar-group__trigger {
+	display: flex;
+	align-items: center;
+	gap: var(--sidebar-item-gap);
+	width: 100%;
+	padding: var(--sidebar-item-padding-y) var(--sidebar-item-padding-x);
+	border: none;
+	border-radius: var(--sidebar-item-border-radius);
+	background: var(--sidebar-item-bg);
+	color: var(--sidebar-item-color);
+	font: inherit;
+	font-weight: var(--sidebar-font-weight);
+	text-align: left;
+	cursor: pointer;
+	transition:
+		background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		color var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	white-space: nowrap;
+	overflow: hidden;
+}
+
+.sidebar-group__trigger:hover:not(:disabled) {
+	background: var(--sidebar-item-bg-hover);
+	color: var(--sidebar-item-color-hover);
+}
+
+.sidebar-group__trigger:disabled {
+	cursor: default;
+}
+
+.sidebar-group__trigger--collapsed {
+	justify-content: center;
+	padding: var(--sidebar-item-padding-y);
+}
+
+.sidebar-group__trigger--non-collapsible {
+	cursor: default;
+}
+
+.sidebar-group__trigger--active {
+	background: var(--sidebar-item-bg-active);
+	color: var(--sidebar-item-color-active);
+}
+
+/* When trigger is a link */
+a.sidebar-group__trigger {
+	text-decoration: none;
+}
+
+.sidebar-group__icon {
+	flex-shrink: 0;
+	width: var(--sidebar-icon-size);
+	height: var(--sidebar-icon-size);
+}
+
+.sidebar-group__label {
+	flex: 1;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	max-width: 100%;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-group__badge {
+	flex-shrink: 0;
+	padding: 2px 6px;
+	font-size: var(--sidebar-font-size-small);
+	font-weight: 600;
+	border-radius: 9999px;
+	background: var(--sidebar-badge-bg);
+	color: var(--sidebar-badge-color);
+	max-width: 100%;
+	overflow: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		max-width var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-group__chevron {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	transition: transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-group__chevron--expanded {
+	transform: rotate(90deg);
+}
+
+/* Chevron button for groups with href */
+.sidebar-group__chevron-btn {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 2px;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: inherit;
+	cursor: pointer;
+	transition:
+		background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-group__chevron-btn:hover {
+	background: var(--sidebar-item-bg-hover);
+}
+
+.sidebar-group__chevron-btn.sidebar-group__chevron--expanded {
+	transform: rotate(90deg);
+}
+
+.sidebar-group__content {
+	overflow: hidden;
+	max-height: var(--sidebar-group-max-height, 1000px);
+	opacity: 1;
+	transform: translateY(0);
+	transition:
+		max-height var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-group__content--hidden {
+	max-height: 0;
+	opacity: 0;
+	transform: translateY(-2px);
+	visibility: hidden;
+	pointer-events: none;
+}
+
+/* ============================================================================
+   Drag and Drop
+   ============================================================================ */
+
+/* Drag handle */
+.sidebar-page__drag-handle,
+.sidebar-group__drag-handle {
+	cursor: grab;
+	color: var(--sidebar-drag-handle-color, hsl(0 0% 60%));
+	padding: 4px;
+	margin-right: 4px;
+	user-select: none;
+	font-size: 12px;
+	letter-spacing: -2px;
+	border-radius: 4px;
+	transition: background-color 150ms ease;
+}
+
+.sidebar-page__drag-handle:hover,
+.sidebar-group__drag-handle:hover {
+	background: var(--sidebar-item-bg-hover);
+}
+
+.sidebar-page__drag-handle:active,
+.sidebar-group__drag-handle:active {
+	cursor: grabbing;
+}
+
+.sidebar-page__drag-handle:focus-visible,
+.sidebar-group__drag-handle:focus-visible {
+	outline: 2px solid var(--sidebar-focus-ring-color, hsl(220 90% 50%));
+	outline-offset: 2px;
+}
+
+/* Keyboard drag active state */
+.sidebar-page__drag-handle[aria-pressed="true"],
+.sidebar-group__drag-handle[aria-pressed="true"] {
+	background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	color: var(--sidebar-drag-active-color, hsl(220 90% 50%));
+}
+
+/* Dragging state - the item being dragged */
+.sidebar-page--dragging,
+.sidebar-group--dragging {
+	opacity: 0.4;
+	background: var(--sidebar-drag-ghost-bg, hsl(220 90% 97%));
+	border-radius: var(--sidebar-item-border-radius);
+}
+
+/* Keyboard dragging state */
+.sidebar-page--keyboard-dragging,
+.sidebar-group--keyboard-dragging {
+	background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	border-radius: var(--sidebar-item-border-radius);
+}
+
+/* Pointer/touch dragging state */
+.sidebar-page--pointer-dragging,
+.sidebar-group--pointer-dragging {
+	opacity: 0.7;
+	transform: scale(1.02);
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Preview state - faded item shown at drop position */
+.sidebar-page--preview,
+.sidebar-group--preview {
+	opacity: 0.5;
+	pointer-events: none;
+}
+
+/* Custom drop indicator wrapper */
+.sidebar-drop-indicator-wrapper {
+	list-style: none;
+}
+
+/* Ensure drag handle and link/button are on same row */
+.sidebar-page,
+.sidebar-group {
+	position: relative;
+}
+
+/* Layout for items with drag handle */
+.sidebar-page:has(.sidebar-page__drag-handle),
+.sidebar-group:has(.sidebar-group__drag-handle) {
+	display: flex;
+	align-items: center;
+}
+
+.sidebar-page:has(.sidebar-page__drag-handle) > .sidebar-page__link,
+.sidebar-group:has(.sidebar-group__drag-handle) > .sidebar-group__trigger {
+	flex: 1;
+	min-width: 0;
+}
+
+/* Touch device optimizations */
+@media (pointer: coarse) {
+	.sidebar-page__drag-handle,
+	.sidebar-group__drag-handle {
+		padding: 8px;
+		margin-right: 2px;
+		touch-action: none;
+	}
+
+	/* Larger touch targets */
+	.sidebar-page__link,
+	.sidebar-group__trigger {
+		min-height: 44px;
+	}
+}
+
+/* Long press visual feedback */
+.sidebar-page__drag-handle--long-press,
+.sidebar-group__drag-handle--long-press {
+	animation: longPressScale 400ms ease-out forwards;
+}
+
+@keyframes longPressScale {
+	0% {
+		transform: scale(1);
+		background: transparent;
+	}
+	100% {
+		transform: scale(1.1);
+		background: var(--sidebar-drag-active-bg, hsl(220 90% 95%));
+	}
+}
+
+/* Screen reader only text */
+.sidebar-dnd-instructions {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Live region for announcements */
+.sidebar-live-region {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip: rect(0, 0, 0, 0);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* ============================================================================
+   Sidebar Icon
+   ============================================================================ */
+
+.sidebar-icon {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--sidebar-icon-size);
+	height: var(--sidebar-icon-size);
+}
+
+.sidebar-icon--string {
+	font-size: var(--sidebar-icon-size);
+	line-height: 1;
+}
+
+/* ============================================================================
+   Sidebar Trigger (Collapse Button)
+   ============================================================================ */
+
+.sidebar-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid var(--sidebar-trigger-border-color);
+	border-radius: 50%;
+	background: var(--sidebar-trigger-bg);
+	color: var(--sidebar-trigger-color);
+	cursor: pointer;
+	transition:
+		background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-trigger:hover {
+	background: var(--sidebar-trigger-bg-hover);
+}
+
+.sidebar-trigger__icon {
+	width: 14px;
+	height: 14px;
+}
+
+/* ============================================================================
+   Scrollbar Styling
+   ============================================================================ */
+
+.sidebar__body::-webkit-scrollbar {
+	width: 6px;
+}
+
+.sidebar__body::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.sidebar__body::-webkit-scrollbar-thumb {
+	background: hsl(0 0% 80%);
+	border-radius: 3px;
+}
+
+.sidebar__body::-webkit-scrollbar-thumb:hover {
+	background: hsl(0 0% 70%);
+}
+
+/* ============================================================================
+   Responsive Mode Classes
+   ============================================================================ */
+
+/* Mobile mode - drawer from left */
+.sidebar--mode-mobile {
+	position: fixed;
+	top: 0;
+	left: 0;
+	height: 100vh;
+	height: 100dvh;
+	width: var(--sidebar-drawer-width);
+	z-index: var(--sidebar-drawer-z-index);
+	transform: translateX(-100%);
+	transition: transform var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+	border-right: 1px solid var(--sidebar-border-color);
+	box-shadow: none;
+}
+
+.sidebar--mode-mobile.sidebar--open {
+	transform: translateX(0);
+	box-shadow: 4px 0 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Tablet mode - width is controlled by sidebar--collapsed class, not forced here */
+.sidebar--mode-tablet {
+	/* Width is managed by .sidebar--collapsed class */
+}
+
+/* Desktop mode - normal expanded behavior */
+.sidebar--mode-desktop {
+	/* Uses default sidebar styles */
+}
+
+/* ============================================================================
+   Sidebar Backdrop (Mobile Mode)
+   ============================================================================ */
+
+.sidebar-backdrop {
+	position: fixed;
+	inset: 0;
+	background: var(--sidebar-backdrop-color);
+	z-index: calc(var(--sidebar-drawer-z-index) - 1);
+	opacity: 0;
+	visibility: hidden;
+	transition:
+		opacity var(--sidebar-animation-duration) var(--sidebar-animation-easing),
+		visibility var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-backdrop--prehydrate {
+	transition: none;
+}
+
+.sidebar-backdrop--visible {
+	opacity: 1;
+	visibility: visible;
+}
+
+/* ============================================================================
+   Mobile Trigger (Hamburger Button)
+   ============================================================================ */
+
+.sidebar-mobile-trigger {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: var(--sidebar-mobile-trigger-size);
+	height: var(--sidebar-mobile-trigger-size);
+	padding: 0;
+	border: 1px solid var(--sidebar-trigger-border-color);
+	border-radius: var(--sidebar-border-radius);
+	background: var(--sidebar-trigger-bg);
+	color: var(--sidebar-trigger-color);
+	cursor: pointer;
+	transition: background-color var(--sidebar-animation-duration) var(--sidebar-animation-easing);
+}
+
+.sidebar-mobile-trigger:hover {
+	background: var(--sidebar-trigger-bg-hover);
+}
+
+.sidebar-mobile-trigger:focus-visible {
+	outline: 2px solid var(--sidebar-item-color-active);
+	outline-offset: 2px;
+}
+
+.sidebar-mobile-trigger__icon {
+	width: 24px;
+	height: 24px;
+}
+
+/* Hide mobile trigger on tablet/desktop by default */
+.sidebar-mobile-trigger--auto-hide {
+	display: none;
+}
+
+@media (max-width: 767px) {
+	.sidebar-mobile-trigger--auto-hide {
+		display: flex;
+	}
+}
+
+/* Mobile trigger container - positioned fixed for easy access */
+.sidebar-mobile-trigger-container {
+	position: fixed;
+	top: 12px;
+	left: 12px;
+	z-index: calc(var(--sidebar-drawer-z-index) - 2);
+}
+
+/* ============================================================================
+   Trigger adjustments for mobile mode
+   ============================================================================ */
+
+/* In mobile mode, position trigger inside the drawer at the top */
+.sidebar--mode-mobile .sidebar__trigger-container {
+	position: static;
+	display: flex;
+	justify-content: flex-end;
+	padding: 8px;
+	border-bottom: 1px solid var(--sidebar-border-color);
+}
+
+.sidebar--mode-mobile .sidebar-trigger {
+	position: static;
+}
+
+/* ============================================================================
+   Body Scroll Lock
+   ============================================================================ */
+
+body.sidebar-scroll-locked {
+	overflow: hidden;
+	position: fixed;
+	width: 100%;
+	height: 100%;
+}
+
+/* ============================================================================
+   Reduced Motion
+   ============================================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+	.sidebar,
+	.sidebar--mode-mobile,
+	.sidebar-backdrop,
+	.sidebar-trigger,
+	.sidebar-mobile-trigger {
+		transition: none;
+	}
+}
+
+/* ============================================================================
+   CSS-only Responsive Fallback (before JS hydrates)
+   ============================================================================ */
+
+@media (max-width: 767px) {
+	.sidebar:not([data-responsive-mode]) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 100vh;
+		height: 100dvh;
+		width: var(--sidebar-drawer-width);
+		z-index: var(--sidebar-drawer-z-index);
+		transform: translateX(-100%);
+	}
+	.sidebar:not([data-hydrated]) {
+		position: fixed;
+		top: 0;
+		left: 0;
+		height: 100vh;
+		height: 100dvh;
+		width: var(--sidebar-drawer-width);
+		z-index: var(--sidebar-drawer-z-index);
+		transform: translateX(-100%);
+	}
+}
+
+@media (min-width: 768px) and (max-width: 1023px) {
+	.sidebar:not([data-responsive-mode]) {
+		width: var(--sidebar-width-collapsed);
+	}
+	.sidebar:not([data-hydrated]) {
+		width: var(--sidebar-width-collapsed);
+	}
+}
+
+/* ============================================================================
+   Custom Drag Preview
+   ============================================================================ */
+
+.sidebar-drag-preview {
+	position: fixed;
+	top: -9999px;
+	left: -9999px;
+	z-index: 9999;
+	pointer-events: none;
+	background: var(--sidebar-drag-preview-bg, white);
+	border-radius: var(--sidebar-drag-preview-radius, 8px);
+	box-shadow: var(--sidebar-drag-preview-shadow, 0 8px 24px rgba(0, 0, 0, 0.2));
+	padding: var(--sidebar-drag-preview-padding, 8px 12px);
+	max-width: var(--sidebar-drag-preview-max-width, 280px);
+}

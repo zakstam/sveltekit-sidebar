@@ -1,0 +1,109 @@
+/* ============================================================================
+   Sidebar CSS Custom Properties (CSS Variables)
+   Override these in your application to customize the sidebar appearance
+   ============================================================================ */
+
+:root {
+	/* Dimensions */
+	--sidebar-width-expanded: 280px;
+	--sidebar-width-collapsed: 64px;
+
+	/* Colors - Background */
+	--sidebar-bg: hsl(0 0% 98%);
+	--sidebar-border-color: hsl(0 0% 90%);
+
+	/* Colors - Items */
+	--sidebar-item-bg: transparent;
+	--sidebar-item-bg-hover: hsl(0 0% 95%);
+	--sidebar-item-bg-active: hsl(220 90% 95%);
+	--sidebar-item-color: hsl(0 0% 20%);
+	--sidebar-item-color-hover: hsl(0 0% 10%);
+	--sidebar-item-color-active: hsl(220 90% 40%);
+	--sidebar-item-color-disabled: hsl(0 0% 60%);
+
+	/* Colors - Section titles */
+	--sidebar-section-title-color: hsl(0 0% 50%);
+
+	/* Colors - Badges */
+	--sidebar-badge-bg: hsl(220 90% 95%);
+	--sidebar-badge-color: hsl(220 90% 40%);
+
+	/* Colors - Trigger button */
+	--sidebar-trigger-bg: hsl(0 0% 100%);
+	--sidebar-trigger-bg-hover: hsl(0 0% 95%);
+	--sidebar-trigger-color: hsl(0 0% 40%);
+	--sidebar-trigger-border-color: hsl(0 0% 85%);
+
+	/* Spacing */
+	--sidebar-padding: 12px;
+	--sidebar-item-padding-x: 12px;
+	--sidebar-item-padding-y: 8px;
+	--sidebar-item-gap: 8px;
+	--sidebar-nested-indent: 16px;
+	--sidebar-section-gap: 24px;
+
+	/* Typography */
+	--sidebar-font-size: 14px;
+	--sidebar-font-size-small: 12px;
+	--sidebar-font-weight: 500;
+	--sidebar-line-height: 1.5;
+	--sidebar-section-title-font-size: 11px;
+	--sidebar-section-title-font-weight: 600;
+	--sidebar-section-title-letter-spacing: 0.05em;
+
+	/* Border radius */
+	--sidebar-border-radius: 6px;
+	--sidebar-item-border-radius: 6px;
+
+	/* Animation */
+	--sidebar-animation-duration: 200ms;
+	--sidebar-animation-easing: cubic-bezier(0.4, 0, 0.2, 1);
+
+	/* Icon */
+	--sidebar-icon-size: 20px;
+
+	/* Collapsed mode avatars */
+	--sidebar-avatar-size: 28px;
+	--sidebar-avatar-bg: hsl(220 15% 85%);
+	--sidebar-avatar-color: hsl(220 15% 35%);
+	--sidebar-avatar-font-size: 12px;
+	--sidebar-avatar-font-weight: 600;
+
+	/* Tooltip */
+	--sidebar-tooltip-bg: hsl(0 0% 20%);
+	--sidebar-tooltip-color: white;
+
+	/* Z-index */
+	--sidebar-z-index: 100;
+
+	/* Responsive */
+	--sidebar-breakpoint-mobile: 768px;
+	--sidebar-breakpoint-tablet: 1024px;
+	--sidebar-drawer-width: min(320px, 85vw);
+	--sidebar-backdrop-color: rgba(0, 0, 0, 0.5);
+	--sidebar-drawer-z-index: 1000;
+	--sidebar-mobile-trigger-size: 44px;
+}
+
+/* Dark mode variant - uncomment or add to your application */
+/*
+@media (prefers-color-scheme: dark) {
+	:root {
+		--sidebar-bg: hsl(0 0% 10%);
+		--sidebar-border-color: hsl(0 0% 20%);
+		--sidebar-item-bg-hover: hsl(0 0% 15%);
+		--sidebar-item-bg-active: hsl(220 50% 20%);
+		--sidebar-item-color: hsl(0 0% 90%);
+		--sidebar-item-color-hover: hsl(0 0% 100%);
+		--sidebar-item-color-active: hsl(220 90% 70%);
+		--sidebar-item-color-disabled: hsl(0 0% 50%);
+		--sidebar-section-title-color: hsl(0 0% 60%);
+		--sidebar-badge-bg: hsl(220 50% 25%);
+		--sidebar-badge-color: hsl(220 90% 80%);
+		--sidebar-trigger-bg: hsl(0 0% 15%);
+		--sidebar-trigger-bg-hover: hsl(0 0% 20%);
+		--sidebar-trigger-color: hsl(0 0% 70%);
+		--sidebar-trigger-border-color: hsl(0 0% 25%);
+	}
+}
+*/

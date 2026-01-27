@@ -1,0 +1,14 @@
+export type { SidebarItem, SidebarRootItem, SidebarConfig, SidebarSettings, SidebarState, SidebarEvents, SidebarProps, SidebarContentProps, SidebarSectionProps, SidebarItemsProps, SidebarPageProps, SidebarGroupProps, SidebarIconProps, SidebarTriggerProps, ItemKind, SidebarSchema, SidebarRenderContext, SidebarReorderEvent, SidebarDnDState, DropPosition, KeyboardDragState, PointerDragState, SidebarResponsiveSettings, SidebarResponsiveMode, SidebarReorderMode, SidebarDnDSettings, SidebarKeyboardShortcuts, SidebarLabels, SidebarAnnouncements } from './types.js';
+export type { SidebarIcon as SidebarIconType, SidebarPage as SidebarPageData, SidebarGroup as SidebarGroupData, SidebarSection as SidebarSectionData } from './types.js';
+export { defaultSchema } from './types.js';
+export { isPage, isGroup, isSection } from './types.js';
+export { Sidebar, SidebarContent, SidebarSection, SidebarItems, SidebarPage, SidebarGroup, SidebarIcon, SidebarTrigger, SidebarLiveRegion, SidebarBackdrop, SidebarMobileTrigger } from './components/index.js';
+export { SvelteKitSidebar } from './adapters/index.js';
+export { SidebarContext, createSidebarContext, setSidebarContext, getSidebarContext, tryGetSidebarContext } from './context.svelte.js';
+export type { SidebarSnippets } from './context.svelte.js';
+export { getAllPages, findItemById, getItemPath, findPageByHref, getAllGroupIds, countItems, getItemDepth, isDescendantOf } from './utils/type-helpers.js';
+export { buildTreeIndex } from './tree/index.js';
+export type { TreeIndex, TreeIndexEntry, TreeIndexDeps } from './tree/index.js';
+export { reorderItems } from './utils/reorder.js';
+export type { ReorderOptions } from './utils/reorder.js';
+export { PageBuilder, GroupBuilder, SectionBuilder, SidebarConfigBuilder, page, group, section, sidebar, createPage, createGroup, createSection, createConfig } from './utils/builder.js';

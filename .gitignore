@@ -5,6 +5,8 @@ node_modules/
 .svelte-kit/
 dist/
 build/
+!packages/sidebar/dist/
+!packages/sidebar/dist/**
 
 # Environment files
 .env
