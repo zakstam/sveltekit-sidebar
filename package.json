@@ -1,37 +1,23 @@
 {
-  "name": "sveltekit-sidebar",
-  "version": "0.7.2",
-  "description": "A type-safe, infinitely nestable sidebar component library for SvelteKit",
+  "name": "sveltekit-sidebar-workspace",
+  "private": true,
   "type": "module",
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build && npm run package",
-    "preview": "vite preview",
-    "package": "svelte-kit sync && svelte-package && publint",
-    "prepare": "svelte-kit sync && svelte-package",
-    "prepublishOnly": "npm run package",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
-    "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "release": "node scripts/release.js",
-    "release:patch": "npm run release -- patch",
-    "release:minor": "npm run release -- minor",
-    "release:major": "npm run release -- major"
-  },
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.ts",
-      "svelte": "./dist/index.js"
-    },
-    "./styles": "./dist/styles/index.css"
-  },
-  "files": [
-    "dist",
-    "!dist/**/*.test.*",
-    "!dist/**/*.spec.*"
+  "packageManager": "pnpm@10.28.1",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
   ],
-  "peerDependencies": {
-    "@sveltejs/kit": "^2.0.0",
-    "svelte": "^5.0.0"
+  "scripts": {
+    "dev:docs": "pnpm -C apps/docs dev",
+    "build:sidebar": "pnpm -C packages/sidebar build",
+    "package:sidebar": "pnpm -C packages/sidebar package",
+    "check:sidebar": "pnpm -C packages/sidebar check",
+    "check:docs": "pnpm -C apps/docs check",
+    "test:sidebar": "pnpm -C packages/sidebar test",
+    "release:sidebar": "pnpm -C packages/sidebar release",
+    "release:sidebar:patch": "pnpm -C packages/sidebar release:patch",
+    "release:sidebar:minor": "pnpm -C packages/sidebar release:minor",
+    "release:sidebar:major": "pnpm -C packages/sidebar release:major"
   },
   "devDependencies": {
     "@sveltejs/adapter-auto": "^6.0.0",
@@ -47,21 +33,5 @@
     "typescript": "^5.0.0",
     "vite": "^6.0.0",
     "vitest": "^4.0.18"
-  },
-  "keywords": [
-    "svelte",
-    "sveltekit",
-    "sidebar",
-    "navigation",
-    "component",
-    "nested",
-    "collapsible"
-  ],
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git+https://github.com/zakstam/sveltekit-sidebar.git"
-  },
-  "svelte": "./dist/index.js",
-  "types": "./dist/index.d.ts"
+  }
 }

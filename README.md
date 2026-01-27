@@ -31,6 +31,20 @@ A type-safe, infinitely nestable sidebar component library for SvelteKit with sc
 npm install github:zakstam/sveltekit-sidebar
 ```
 
+## Repo Structure (Monorepo)
+
+- Library package: `packages/sidebar`
+- Docs/demo app: `apps/docs`
+
+Useful workspace scripts from the repo root:
+
+```bash
+pnpm dev:docs
+pnpm check:sidebar
+pnpm check:docs
+pnpm test:sidebar
+```
+
 ---
 
 ## Two APIs: Legacy Config vs Schema + Snippets
@@ -42,7 +56,10 @@ Use the built-in types with a config object:
 ```svelte
 <script lang="ts">
   import { Sidebar } from 'sveltekit-sidebar';
-  import 'sveltekit-sidebar/styles';
+  // Styles (recommended)
+  import 'sveltekit-sidebar/styles.css';
+  // Legacy (still supported)
+  // import 'sveltekit-sidebar/styles';
 
   const config = {
     sections: [
@@ -84,7 +101,7 @@ Use your own data types with a schema mapper:
 ```svelte
 <script lang="ts">
   import { Sidebar, type SidebarSchema } from 'sveltekit-sidebar';
-  import 'sveltekit-sidebar/styles';
+  import 'sveltekit-sidebar/styles.css';
 
   // Your own data type
   interface NavItem {
@@ -130,6 +147,26 @@ Use your own data types with a schema mapper:
 
 ---
 
+## Routing
+
+The core `Sidebar` is routing-agnostic. Provide the current pathname via `activeHref`:
+
+```svelte
+<Sidebar data={navigation} {schema} activeHref={currentPath} />
+```
+
+For SvelteKit, use the thin adapter component:
+
+```svelte
+<script lang="ts">
+  import { SvelteKitSidebar } from 'sveltekit-sidebar';
+</script>
+
+<SvelteKitSidebar data={navigation} {schema} />
+```
+
+---
+
 ## Complete Type Reference
 
 ### SidebarSchema<T>
@@ -146,6 +183,7 @@ interface SidebarSchema<T = unknown> {
   // Optional
   getHref?: (item: T) => string | undefined;
   getItems?: (item: T) => T[] | undefined;
+  setItems?: (item: T, items: T[]) => T; // Required for uncontrolled DnD
   getIcon?: (item: T) => SidebarIcon | undefined;
   getBadge?: (item: T) => string | number | undefined;
   getDisabled?: (item: T) => boolean;
@@ -155,6 +193,33 @@ interface SidebarSchema<T = unknown> {
   getTitle?: (item: T) => string | undefined;
   getMeta?: (item: T) => Record<string, unknown>;
 }
+```
+
+### Tree Index & Data Updates
+
+The sidebar now builds a lightweight tree index for faster lookups.
+
+Recommended:
+- Prefer immutable updates (new `data` array reference).
+
+If you mutate in place:
+- Call `ctx.invalidateTreeIndex()` to force a rebuild.
+
+See `TREE_INDEX_NOTES.md` for details.
+
+```ts
+import { buildTreeIndex, getSidebarContext } from 'sveltekit-sidebar';
+
+// Optional: build an index for your own utilities
+const index = buildTreeIndex({
+  data: navigation,
+  getId: (item) => item.id,
+  getItems: (item) => item.children ?? []
+});
+
+// Escape hatch: if you mutate in place, invalidate the cached index
+const ctx = getSidebarContext();
+ctx.invalidateTreeIndex();
 ```
 
 ### SidebarRenderContext<T>
@@ -385,6 +450,7 @@ interface SidebarProps<T = SidebarItem | SidebarSection> {
   // Drag and drop
   draggable?: boolean;             // Enable drag-and-drop reordering
   onReorder?: (event: SidebarReorderEvent<T>) => void;
+  reorderMode?: 'auto' | 'controlled' | 'uncontrolled'; // Defaults to 'auto'
   animated?: boolean;              // Enable FLIP animations (default: true)
   livePreview?: boolean;           // Items reorder during drag (default: true)
   dragPreview?: Snippet<[item: T, ctx: SidebarRenderContext<T>]>;  // Custom drag image
@@ -396,6 +462,7 @@ interface SidebarProps<T = SidebarItem | SidebarSection> {
   // Common
   events?: SidebarEvents;
   class?: string;
+  activeHref?: string;             // Current active pathname/href (routing-agnostic)
   header?: Snippet;
   footer?: Snippet;
   children?: Snippet;
@@ -636,7 +703,7 @@ class SidebarContext<T = unknown> {
   readonly width: string;
   readonly data: T[];
   readonly schema: SidebarSchema<T>;
-  readonly settings: Required<SidebarSettings>;
+  readonly settings: SidebarSettings;
 
   // Responsive state (reactive)
   readonly responsiveMode: SidebarResponsiveMode;  // 'mobile' | 'tablet' | 'desktop'
@@ -652,6 +719,12 @@ class SidebarContext<T = unknown> {
   isGroupExpanded(groupId: string): boolean;
   getExpandedGroupIds(): string[];
   expandPathTo(itemId: string): void;
+
+  // Routing / active state
+  setActiveHref(href: string): void;
+
+  // Tree index
+  invalidateTreeIndex(): void;
 
   // Responsive / Mobile drawer
   openDrawer(): void;
@@ -959,6 +1032,23 @@ Enable built-in drag-and-drop reordering with the `draggable` prop:
   data={navigation}
   {schema}
   draggable={true}
+  onReorder={handleReorder}
+/>
+```
+
+### Controlled vs Uncontrolled Reordering
+
+`reorderMode` controls who updates the data:
+- `'auto'` (default): controlled when `onReorder` is provided, otherwise uncontrolled
+- `'controlled'`: you must update `data` in `onReorder`
+- `'uncontrolled'`: the sidebar updates its internal data (requires `schema.getItems` + `schema.setItems`)
+
+```svelte
+<Sidebar
+  data={navigation}
+  {schema}
+  draggable={true}
+  reorderMode="controlled"
   onReorder={handleReorder}
 />
 ```
@@ -1318,7 +1408,7 @@ Import the default styles and override CSS custom properties:
 
 ```svelte
 <script>
-  import 'sveltekit-sidebar/styles';
+  import 'sveltekit-sidebar/styles.css';
 </script>
 
 <style>
@@ -1389,6 +1479,7 @@ import {
   countItems,
   getItemDepth,
   isDescendantOf,
+  buildTreeIndex,
   reorderItems
 } from 'sveltekit-sidebar';
 
@@ -1523,12 +1614,16 @@ export type {
   PointerDragState,
   SidebarResponsiveSettings,
   SidebarResponsiveMode,
+  SidebarReorderMode,
   // Customization types
   SidebarDnDSettings,
   SidebarKeyboardShortcuts,
   SidebarLabels,
   SidebarAnnouncements
 } from 'sveltekit-sidebar';
+
+// Components
+export { Sidebar, SvelteKitSidebar } from 'sveltekit-sidebar';
 
 // Type Guards
 export { isPage, isGroup, isSection, defaultSchema } from 'sveltekit-sidebar';
@@ -1664,16 +1759,16 @@ The sidebar has built-in responsive behavior. For custom mobile handling:
 npm install
 
 # Start dev server
-npm run dev
+pnpm dev:docs
 
 # Build the package
-npm run package
+pnpm build:sidebar
 
 # Type check
-npm run check
+pnpm check:sidebar
 
 # Lint
-npm run lint
+pnpm test:sidebar
 ```
 
 ## License
