@@ -69,10 +69,6 @@
 	--sidebar-avatar-font-size: 12px;
 	--sidebar-avatar-font-weight: 600;
 
-	/* Tooltip */
-	--sidebar-tooltip-bg: hsl(0 0% 20%);
-	--sidebar-tooltip-color: white;
-
 	/* Z-index */
 	--sidebar-z-index: 100;
 

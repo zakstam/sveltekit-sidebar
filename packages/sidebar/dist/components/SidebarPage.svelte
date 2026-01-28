@@ -60,8 +60,6 @@
 			aria-disabled={renderCtx.isDisabled}
 			target={renderCtx.isExternal ? '_blank' : undefined}
 			rel={renderCtx.isExternal ? 'noopener noreferrer' : undefined}
-			data-tooltip={isCollapsed ? renderCtx.label : undefined}
-			title={isCollapsed ? renderCtx.label : undefined}
 			onclick={handleClick}
 		>
 			{#if renderCtx.icon}
