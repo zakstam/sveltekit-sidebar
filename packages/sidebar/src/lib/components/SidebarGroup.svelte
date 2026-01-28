@@ -80,8 +80,6 @@
 				aria-current={renderCtx.isActive ? 'page' : undefined}
 				target={renderCtx.isExternal ? '_blank' : undefined}
 				rel={renderCtx.isExternal ? 'noopener noreferrer' : undefined}
-				data-tooltip={isCollapsed ? renderCtx.label : undefined}
-				title={isCollapsed ? renderCtx.label : undefined}
 				onclick={handleClick}
 			>
 				{#if renderCtx.icon}
@@ -133,8 +131,6 @@
 				class:sidebar-group__trigger--collapsed={isCollapsed}
 				class:sidebar-group__trigger--non-collapsible={!isCollapsible}
 				aria-expanded={isCollapsible ? isExpanded : undefined}
-				data-tooltip={isCollapsed ? renderCtx.label : undefined}
-				title={isCollapsed ? renderCtx.label : undefined}
 				onclick={handleToggle}
 				onkeydown={handleKeydown}
 				disabled={!isCollapsible}

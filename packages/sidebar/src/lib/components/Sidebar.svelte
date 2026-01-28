@@ -228,52 +228,7 @@
 		};
 	});
 
-	// Tooltip handling for collapsed mode
 	let sidebarElement: HTMLElement;
-	let tooltipElement: HTMLElement;
-	let currentTooltipTarget: HTMLElement | null = null;
-
-	$effect(() => {
-		if (!sidebarElement || typeof window === 'undefined') return;
-
-		function handleMouseOver(e: MouseEvent) {
-			if (!ctx.isCollapsed || !tooltipElement) return;
-
-			const target = (e.target as HTMLElement).closest('[data-tooltip]') as HTMLElement | null;
-			if (!target || target === currentTooltipTarget) return;
-
-			currentTooltipTarget = target;
-			const text = target.getAttribute('data-tooltip');
-			if (!text) return;
-
-			const rect = target.getBoundingClientRect();
-			tooltipElement.textContent = text;
-			tooltipElement.style.top = `${rect.top + rect.height / 2}px`;
-			tooltipElement.style.left = `${rect.right + 8}px`;
-			tooltipElement.style.transform = 'translateY(-50%)';
-			tooltipElement.classList.add('sidebar-tooltip--visible');
-		}
-
-		function handleMouseOut(e: MouseEvent) {
-			if (!tooltipElement) return;
-
-			const relatedTarget = e.relatedTarget as HTMLElement | null;
-			const stillInTooltipTarget = relatedTarget?.closest('[data-tooltip]') === currentTooltipTarget;
-
-			if (!stillInTooltipTarget) {
-				tooltipElement.classList.remove('sidebar-tooltip--visible');
-				currentTooltipTarget = null;
-			}
-		}
-
-		sidebarElement.addEventListener('mouseover', handleMouseOver);
-		sidebarElement.addEventListener('mouseout', handleMouseOut);
-
-		return () => {
-			sidebarElement.removeEventListener('mouseover', handleMouseOver);
-			sidebarElement.removeEventListener('mouseout', handleMouseOut);
-		};
-	});
 </script>
 
 <!-- Mobile trigger rendered outside sidebar for accessibility -->
@@ -290,9 +245,6 @@
 	{#if isResponsiveEnabled && isMobileMode}
 		<SidebarBackdrop class={hydrated ? '' : 'sidebar-backdrop--prehydrate'} />
 	{/if}
-
-<!-- Tooltip element for collapsed mode -->
-<div bind:this={tooltipElement} class="sidebar-tooltip" aria-hidden="true"></div>
 
 <aside
 	bind:this={sidebarElement}

@@ -53,7 +53,7 @@ html:not([data-hydrated]) .sidebar-group__content {
    Collapsed Mode Styles
    ============================================================================ */
 
-/* Allow tooltip overflow in collapsed mode */
+/* Allow overflow in collapsed mode */
 .sidebar--collapsed .sidebar__body {
 	overflow: visible;
 }
@@ -123,27 +123,6 @@ html:not([data-hydrated]) .sidebar-group__content {
 	font-weight: var(--sidebar-avatar-font-weight);
 	text-transform: uppercase;
 	flex-shrink: 0;
-}
-
-/* Sidebar tooltip element (created by JS) */
-.sidebar-tooltip {
-	position: fixed;
-	padding: 6px 12px;
-	background: var(--sidebar-tooltip-bg);
-	color: var(--sidebar-tooltip-color);
-	font-size: var(--sidebar-font-size-small);
-	font-weight: 500;
-	border-radius: var(--sidebar-border-radius);
-	white-space: nowrap;
-	pointer-events: none;
-	z-index: 9999;
-	box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-	opacity: 0;
-	transition: opacity 150ms ease;
-}
-
-.sidebar-tooltip--visible {
-	opacity: 1;
 }
 
 /* ============================================================================

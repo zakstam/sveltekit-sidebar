@@ -1478,9 +1478,6 @@ Import the default styles and override CSS custom properties:
     --sidebar-avatar-font-size: 12px;
     --sidebar-avatar-font-weight: 600;
 
-    /* Collapsed mode tooltips */
-    --sidebar-tooltip-bg: hsl(0 0% 20%);
-    --sidebar-tooltip-color: white;
   }
 </style>
 ```
